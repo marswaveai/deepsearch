@@ -1,38 +1,53 @@
-import {BoostedSearchSnippet, KnowledgeItem, SearchResult, SearchSnippet, TrackerContext, VisitAction} from "../types";
-import {getI18nText, smartMergeStrings} from "./text-tools";
-import {rerankDocuments} from "../tools/jina-rerank";
-import {readUrl} from "../tools/read";
-import {Schemas} from "./schemas";
-import {cherryPick} from "../tools/jina-latechunk";
-import {formatDateBasedOnType} from "./date-tools";
-import {classifyText} from "../tools/jina-classify-spam";
+import {
+  BoostedSearchSnippet,
+  KnowledgeItem,
+  SearchResult,
+  SearchSnippet,
+  TrackerContext,
+  VisitAction,
+} from "../types";
+import { getI18nText, smartMergeStrings } from "./text-tools";
+import { rerankDocuments } from "../tools/jina-rerank";
+import { readUrl } from "../tools/read";
+import { Schemas } from "./schemas";
+import { cherryPick } from "../tools/jina-latechunk";
+import { formatDateBasedOnType } from "./date-tools";
+import { classifyText } from "../tools/jina-classify-spam";
 
-export function normalizeUrl(urlString: string, debug = false, options = {
-  removeAnchors: true,
-  removeSessionIDs: true,
-  removeUTMParams: true,
-  removeTrackingParams: true,
-  removeXAnalytics: true  // New option to control x.com /analytics removal
-}) {
+export function normalizeUrl(
+  urlString: string,
+  debug = false,
+  options = {
+    removeAnchors: true,
+    removeSessionIDs: true,
+    removeUTMParams: true,
+    removeTrackingParams: true,
+    removeXAnalytics: true, // New option to control x.com /analytics removal
+  },
+) {
   try {
-    urlString = urlString.replace(/\s+/g, '').trim();
+    urlString = urlString.replace(/\s+/g, "").trim();
 
     if (!urlString?.trim()) {
-      throw new Error('Empty URL');
+      throw new Error("Empty URL");
     }
 
-    if (urlString.startsWith('https://google.com/') || urlString.startsWith('https://www.google.com')) {
-      throw new Error('Google search link');
+    if (
+      urlString.startsWith("https://google.com/") ||
+      urlString.startsWith("https://www.google.com")
+    ) {
+      throw new Error("Google search link");
     }
 
-    if (urlString.includes('example.com')) {
-      throw new Error('Example URL');
+    if (urlString.includes("example.com")) {
+      throw new Error("Example URL");
     }
 
     // Handle x.com and twitter.com URLs with /analytics
     if (options.removeXAnalytics) {
       // Match with or without query parameters and fragments
-      const xComPattern = /^(https?:\/\/(www\.)?(x\.com|twitter\.com)\/([^/]+)\/status\/(\d+))\/analytics(\/)?(\?.*)?(#.*)?$/i;
+      const xComPattern =
+        /^(https?:\/\/(www\.)?(x\.com|twitter\.com)\/([^/]+)\/status\/(\d+))\/analytics(\/)?(\?.*)?(#.*)?$/i;
       const xMatch = urlString.match(xComPattern);
       if (xMatch) {
         // Preserve query parameters and fragments if present
@@ -44,57 +59,66 @@ export function normalizeUrl(urlString: string, debug = false, options = {
     }
 
     const url = new URL(urlString);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-      throw new Error('Unsupported protocol');
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      throw new Error("Unsupported protocol");
     }
 
     url.hostname = url.hostname.toLowerCase();
-    if (url.hostname.startsWith('www.')) {
+    if (url.hostname.startsWith("www.")) {
       url.hostname = url.hostname.slice(4);
     }
 
-    if ((url.protocol === 'http:' && url.port === '80') ||
-      (url.protocol === 'https:' && url.port === '443')) {
-      url.port = '';
+    if (
+      (url.protocol === "http:" && url.port === "80") ||
+      (url.protocol === "https:" && url.port === "443")
+    ) {
+      url.port = "";
     }
 
     // Path normalization with error tracking
-    url.pathname = url.pathname
-      .split('/')
-      .map(segment => {
-        try {
-          return decodeURIComponent(segment);
-        } catch (e) {
-          if (debug) console.error(`Failed to decode path segment: ${segment}`, e);
-          return segment;
-        }
-      })
-      .join('/')
-      .replace(/\/+/g, '/')
-      .replace(/\/+$/, '') || '/';
+    url.pathname =
+      url.pathname
+        .split("/")
+        .map((segment) => {
+          try {
+            return decodeURIComponent(segment);
+          } catch (e) {
+            if (debug)
+              console.error(`Failed to decode path segment: ${segment}`, e);
+            return segment;
+          }
+        })
+        .join("/")
+        .replace(/\/+/g, "/")
+        .replace(/\/+$/, "") || "/";
 
     // Query parameter normalization with error details
     const searchParams = new URLSearchParams(url.search);
     const sortedParams = Array.from(searchParams.entries())
       .map(([key, value]) => {
-        if (value === '') return [key, ''];
+        if (value === "") return [key, ""];
         try {
           const decodedValue = decodeURIComponent(value);
           if (encodeURIComponent(decodedValue) === value) {
             return [key, decodedValue];
           }
         } catch (e) {
-          if (debug) console.error(`Failed to decode query param ${key}=${value}`, e);
+          if (debug)
+            console.error(`Failed to decode query param ${key}=${value}`, e);
         }
         return [key, value];
       })
       // Filter out tracking, session and UTM parameters
       .filter(([key]) => {
-        if (key === '') return false;
+        if (key === "") return false;
 
         // Remove session IDs
-        if (options.removeSessionIDs &&
-          /^(s|session|sid|sessionid|phpsessid|jsessionid|aspsessionid|asp\.net_sessionid)$/i.test(key)) {
+        if (
+          options.removeSessionIDs &&
+          /^(s|session|sid|sessionid|phpsessid|jsessionid|aspsessionid|asp\.net_sessionid)$/i.test(
+            key,
+          )
+        ) {
           return false;
         }
 
@@ -104,8 +128,12 @@ export function normalizeUrl(urlString: string, debug = false, options = {
         }
 
         // Remove common tracking parameters
-        if (options.removeTrackingParams &&
-          /^(ref|referrer|fbclid|gclid|cid|mcid|source|medium|campaign|term|content|sc_rid|mc_[a-z]+)$/i.test(key)) {
+        if (
+          options.removeTrackingParams &&
+          /^(ref|referrer|fbclid|gclid|cid|mcid|source|medium|campaign|term|content|sc_rid|mc_[a-z]+)$/i.test(
+            key,
+          )
+        ) {
           return false;
         }
 
@@ -117,16 +145,21 @@ export function normalizeUrl(urlString: string, debug = false, options = {
 
     // Fragment (anchor) handling - remove completely if requested
     if (options.removeAnchors) {
-      url.hash = '';
-    } else if (url.hash === '#' || url.hash === '#top' || url.hash === '#/' || !url.hash) {
-      url.hash = '';
+      url.hash = "";
+    } else if (
+      url.hash === "#" ||
+      url.hash === "#top" ||
+      url.hash === "#/" ||
+      !url.hash
+    ) {
+      url.hash = "";
     } else if (url.hash) {
       try {
         const decodedHash = decodeURIComponent(url.hash.slice(1));
         const encodedBack = encodeURIComponent(decodedHash);
         // Only use decoded version if it's safe
         if (encodedBack === url.hash.slice(1)) {
-          url.hash = '#' + decodedHash;
+          url.hash = "#" + decodedHash;
         }
       } catch (e) {
         if (debug) console.error(`Failed to decode fragment: ${url.hash}`, e);
@@ -136,7 +169,7 @@ export function normalizeUrl(urlString: string, debug = false, options = {
     let normalizedUrl = url.toString();
 
     // Remove trailing slash from paths that aren't just "/"
-    if (url.pathname.length > 1 && url.pathname.endsWith('/')) {
+    if (url.pathname.length > 1 && url.pathname.endsWith("/")) {
       url.pathname = url.pathname.slice(0, -1);
     }
 
@@ -149,7 +182,7 @@ export function normalizeUrl(urlString: string, debug = false, options = {
         normalizedUrl = decodedUrl;
       }
     } catch (e) {
-      if (debug) console.error('Failed to decode final URL', e);
+      if (debug) console.error("Failed to decode final URL", e);
     }
 
     return normalizedUrl;
@@ -160,12 +193,19 @@ export function normalizeUrl(urlString: string, debug = false, options = {
   }
 }
 
-export function filterURLs(allURLs: Record<string, SearchSnippet>, visitedURLs: string[], badHostnames: string[]): SearchSnippet[] {
+export function filterURLs(
+  allURLs: Record<string, SearchSnippet>,
+  visitedURLs: string[],
+  badHostnames: string[],
+): SearchSnippet[] {
   return Object.entries(allURLs)
-    .filter(([url,]) => !visitedURLs.includes(url) && !badHostnames.includes(extractUrlParts(url).hostname))
+    .filter(
+      ([url]) =>
+        !visitedURLs.includes(url) &&
+        !badHostnames.includes(extractUrlParts(url).hostname),
+    )
     .map(([, result]) => result);
 }
-
 
 // Function to extract hostname and path from a URL
 const extractUrlParts = (urlStr: string) => {
@@ -173,11 +213,11 @@ const extractUrlParts = (urlStr: string) => {
     const url = new URL(urlStr);
     return {
       hostname: url.hostname,
-      path: url.pathname
+      path: url.pathname,
     };
   } catch (e) {
     console.error(`Error parsing URL: ${urlStr}`, e);
-    return {hostname: "", path: ""};
+    return { hostname: "", path: "" };
   }
 };
 
@@ -187,25 +227,32 @@ export const countUrlParts = (urlItems: SearchResult[]) => {
   const pathPrefixCount: Record<string, number> = {};
   let totalUrls = 0;
 
-  urlItems.forEach(item => {
-    item = (item as { title: string; url: string; description: string; weight?: number })
+  urlItems.forEach((item) => {
+    item = item as {
+      title: string;
+      url: string;
+      description: string;
+      weight?: number;
+    };
     if (!item || !item.url) return; // Skip invalid items
 
     totalUrls++;
-    const {hostname, path} = extractUrlParts(item.url);
+    const { hostname, path } = extractUrlParts(item.url);
 
     // Count hostnames
     hostnameCount[hostname] = (hostnameCount[hostname] || 0) + 1;
 
     // Count path prefixes (segments)
-    const pathSegments = path.split('/').filter(segment => segment.length > 0);
+    const pathSegments = path
+      .split("/")
+      .filter((segment) => segment.length > 0);
     pathSegments.forEach((segment, index) => {
-      const prefix = '/' + pathSegments.slice(0, index + 1).join('/');
+      const prefix = "/" + pathSegments.slice(0, index + 1).join("/");
       pathPrefixCount[prefix] = (pathPrefixCount[prefix] || 0) + 1;
     });
   });
 
-  return {hostnameCount, pathPrefixCount, totalUrls};
+  return { hostnameCount, pathPrefixCount, totalUrls };
 };
 
 // Calculate normalized frequency for boosting
@@ -214,23 +261,27 @@ const normalizeCount = (count: any, total: any) => {
 };
 
 // Calculate boosted weights
-export const rankURLs = (urlItems: SearchSnippet[], options: any = {}, trackers: TrackerContext): any[] => {
+export const rankURLs = (
+  urlItems: SearchSnippet[],
+  options: any = {},
+  trackers: TrackerContext,
+): any[] => {
   // Default parameters for boosting - can be overridden
   const {
-    freqFactor = 0.5,           // How much to boost based on term frequency
-    hostnameBoostFactor = 0.5,  // How much to boost based on hostname frequency
-    pathBoostFactor = 0.4,      // How much to boost based on path frequency
-    decayFactor = 0.8,          // Decay factor for longer paths (0-1)
-    jinaRerankFactor = 0.8,     // How much to boost based on Jina reranking
-    minBoost = 0,               // Minimum boost score
-    maxBoost = 5,                // Maximum boost score cap
-    question = '',              // Optional question for Jina reranking
-    boostHostnames = [],        // Optional hostnames to boost
+    freqFactor = 0.5, // How much to boost based on term frequency
+    hostnameBoostFactor = 0.5, // How much to boost based on hostname frequency
+    pathBoostFactor = 0.4, // How much to boost based on path frequency
+    decayFactor = 0.8, // Decay factor for longer paths (0-1)
+    jinaRerankFactor = 0.8, // How much to boost based on Jina reranking
+    minBoost = 0, // Minimum boost score
+    maxBoost = 5, // Maximum boost score cap
+    question = "", // Optional question for Jina reranking
+    boostHostnames = [], // Optional hostnames to boost
   } = options;
 
   // Count URL parts first
   const counts = countUrlParts(urlItems);
-  const {hostnameCount, pathPrefixCount, totalUrls} = counts;
+  const { hostnameCount, pathPrefixCount, totalUrls } = counts;
 
   if (question.trim().length > 0) {
     // Step 1: Create a record to track unique content with their original indices
@@ -249,74 +300,90 @@ export const rankURLs = (urlItems: SearchSnippet[], options: any = {}, trackers:
     // Step 2: Rerank only the unique contents
     const uniqueContents = Object.keys(uniqueContentMap);
     const uniqueIndicesMap = Object.values(uniqueContentMap);
-    console.log(`rerank URLs: ${urlItems.length}->${uniqueContents.length}`)
-    rerankDocuments(question, uniqueContents, trackers.tokenTracker)
-      .then(({results}) => {
+    console.log(`rerank URLs: ${urlItems.length}->${uniqueContents.length}`);
+    rerankDocuments(question, uniqueContents, trackers.tokenTracker).then(
+      ({ results }) => {
         // Step 3: Map the scores back to all original items
-        results.forEach(({index, relevance_score}) => {
+        results.forEach(({ index, relevance_score }) => {
           const originalIndices = uniqueIndicesMap[index];
           const boost = relevance_score * jinaRerankFactor;
 
           // Apply the same boost to all items with identical content
           originalIndices.forEach((originalIndex: number) => {
-            (urlItems[originalIndex] as BoostedSearchSnippet).jinaRerankBoost = boost;
+            (urlItems[originalIndex] as BoostedSearchSnippet).jinaRerankBoost =
+              boost;
           });
         });
-      });
+      },
+    );
   }
 
+  return (urlItems as BoostedSearchSnippet[])
+    .map((item) => {
+      if (!item || !item.url) {
+        console.error("Skipping invalid item:", item);
+        return item; // Return unchanged
+      }
 
-  return (urlItems as BoostedSearchSnippet[]).map(item => {
-    if (!item || !item.url) {
-      console.error('Skipping invalid item:', item);
-      return item; // Return unchanged
-    }
+      const { hostname, path } = extractUrlParts(item.url);
 
-    const {hostname, path} = extractUrlParts(item.url);
+      // Base weight from original
+      const freq = item.weight || 0; // Default to 1 if weight is missing
 
-    // Base weight from original
-    const freq = item.weight || 0; // Default to 1 if weight is missing
+      // Hostname boost (normalized by total URLs)
+      const hostnameFreq = normalizeCount(
+        hostnameCount[hostname] || 0,
+        totalUrls,
+      );
+      const hostnameBoost =
+        hostnameFreq *
+        hostnameBoostFactor *
+        (boostHostnames.includes(hostname) ? 2 : 1);
 
-    // Hostname boost (normalized by total URLs)
-    const hostnameFreq = normalizeCount(hostnameCount[hostname] || 0, totalUrls);
-    const hostnameBoost = hostnameFreq * hostnameBoostFactor * (boostHostnames.includes(hostname) ? 2 : 1);
+      // Path boost (consider all path prefixes with decay for longer paths)
+      let pathBoost = 0;
+      const pathSegments = path
+        .split("/")
+        .filter((segment) => segment.length > 0);
+      pathSegments.forEach((segment, index) => {
+        const prefix = "/" + pathSegments.slice(0, index + 1).join("/");
+        const prefixCount = pathPrefixCount[prefix] || 0;
+        const prefixFreq = normalizeCount(prefixCount, totalUrls);
 
-    // Path boost (consider all path prefixes with decay for longer paths)
-    let pathBoost = 0;
-    const pathSegments = path.split('/').filter(segment => segment.length > 0);
-    pathSegments.forEach((segment, index) => {
-      const prefix = '/' + pathSegments.slice(0, index + 1).join('/');
-      const prefixCount = pathPrefixCount[prefix] || 0;
-      const prefixFreq = normalizeCount(prefixCount, totalUrls);
+        // Apply decay factor based on path depth
+        const decayedBoost =
+          prefixFreq * Math.pow(decayFactor, index) * pathBoostFactor;
+        pathBoost += decayedBoost;
+      });
 
-      // Apply decay factor based on path depth
-      const decayedBoost = prefixFreq * Math.pow(decayFactor, index) * pathBoostFactor;
-      pathBoost += decayedBoost;
-    });
+      const freqBoost = (freq / totalUrls) * freqFactor;
+      const jinaRerankBoost = item.jinaRerankBoost || 0;
+      // Calculate new weight with clamping
+      const finalScore = Math.min(
+        Math.max(
+          hostnameBoost + pathBoost + freqBoost + jinaRerankBoost,
+          minBoost,
+        ),
+        maxBoost,
+      );
 
-    const freqBoost = freq / totalUrls * freqFactor;
-    const jinaRerankBoost = item.jinaRerankBoost || 0;
-    // Calculate new weight with clamping
-    const finalScore = Math.min(
-      Math.max(
-        hostnameBoost
-        + pathBoost
-        + freqBoost
-        + jinaRerankBoost, minBoost),
-      maxBoost);
-
-    return {
-      ...item,
-      freqBoost,
-      hostnameBoost,
-      pathBoost,
-      jinaRerankBoost,
-      finalScore
-    } as BoostedSearchSnippet;
-  }).sort((a, b) => b.finalScore - a.finalScore);
+      return {
+        ...item,
+        freqBoost,
+        hostnameBoost,
+        pathBoost,
+        jinaRerankBoost,
+        finalScore,
+      } as BoostedSearchSnippet;
+    })
+    .sort((a, b) => b.finalScore - a.finalScore);
 };
 
-export const addToAllURLs = (r: SearchSnippet, allURLs: Record<string, SearchSnippet>, weightDelta = 1) => {
+export const addToAllURLs = (
+  r: SearchSnippet,
+  allURLs: Record<string, SearchSnippet>,
+  weightDelta = 1,
+) => {
   const nURL = normalizeUrl(r.url);
   if (!nURL) return 0;
   if (!allURLs[nURL]) {
@@ -329,27 +396,35 @@ export const addToAllURLs = (r: SearchSnippet, allURLs: Record<string, SearchSni
     allURLs[nURL].description = smartMergeStrings(curDesc, r.description);
     return 0;
   }
-}
+};
 
-export const weightedURLToString = (allURLs: BoostedSearchSnippet[], maxURLs = 70) => {
-  if (!allURLs || allURLs.length === 0) return '';
+export const weightedURLToString = (
+  allURLs: BoostedSearchSnippet[],
+  maxURLs = 70,
+) => {
+  if (!allURLs || allURLs.length === 0) return "";
 
-  return (allURLs)
-    .map(r => {
+  return allURLs
+    .map((r) => {
       const merged = smartMergeStrings(r.title, r.description);
       return {
         url: r.url,
         score: r.finalScore,
-        merged
+        merged,
       };
     })
-    .filter(item => item.merged !== '' && item.merged !== undefined && item.merged !== null)
+    .filter(
+      (item) =>
+        item.merged !== "" && item.merged !== undefined && item.merged !== null,
+    )
     .sort((a, b) => (b.score || 0) - (a.score || 0))
     .slice(0, maxURLs)
-    .map(item => `  + weight: ${item.score.toFixed(2)} "${item.url}": "${item.merged}"`)
-    .join('\n');
-}
-
+    .map(
+      (item) =>
+        `  + weight: ${item.score.toFixed(2)} "${item.url}": "${item.merged}"`,
+    )
+    .join("\n");
+};
 
 /**
  * Draw a sample from a multinomial distribution
@@ -387,13 +462,14 @@ export function sampleMultinomial<T>(items: [T, number][]): T | null {
   return items[items.length - 1][0];
 }
 
-
 /**
  * Fetches the last modified date for a URL using the datetime detection API
  * @param url The URL to check for last modified date
  * @returns Promise containing the last modified date or null if not found
  */
-export async function getLastModified(url: string): Promise<string | undefined> {
+export async function getLastModified(
+  url: string,
+): Promise<string | undefined> {
   try {
     // Call the API with proper encoding
     const apiUrl = `https://api-beta-datetime.jina.ai?url=${encodeURIComponent(url)}`;
@@ -412,13 +488,15 @@ export async function getLastModified(url: string): Promise<string | undefined> 
 
     return undefined;
   } catch (error) {
-    console.error('Failed to fetch last modified date:', error);
+    console.error("Failed to fetch last modified date:", error);
     return undefined;
   }
 }
 
-
-export const keepKPerHostname = (results: BoostedSearchSnippet[], k: number) => {
+export const keepKPerHostname = (
+  results: BoostedSearchSnippet[],
+  k: number,
+) => {
   const hostnameMap: Record<string, number> = {};
   const filteredResults: BoostedSearchSnippet[] = [];
 
@@ -435,7 +513,7 @@ export const keepKPerHostname = (results: BoostedSearchSnippet[], k: number) => 
   });
 
   return filteredResults;
-}
+};
 
 export async function processURLs(
   urls: string[],
@@ -445,26 +523,28 @@ export async function processURLs(
   visitedURLs: string[],
   badURLs: string[],
   schemaGen: Schemas,
-  question: string
-): Promise<{ urlResults: any[], success: boolean }> {
+  question: string,
+): Promise<{ urlResults: any[]; success: boolean }> {
   // Skip if no URLs to process
   if (urls.length === 0) {
-    return {urlResults: [], success: false};
+    return { urlResults: [], success: false };
   }
 
   const badHostnames: string[] = [];
 
   // Track the reading action
   const thisStep: VisitAction = {
-    action: 'visit',
-    think: getI18nText('read_for', schemaGen.languageCode, {urls: urls.join(', ')}),
-    URLTargets: urls
-  }
-  context.actionTracker.trackAction({thisStep})
+    action: "visit",
+    think: getI18nText("read_for", schemaGen.languageCode, {
+      urls: urls.join(", "),
+    }),
+    URLTargets: urls,
+  };
+  context.actionTracker.trackAction({ thisStep });
 
   // Process each URL in parallel
   const urlResults = await Promise.all(
-    urls.map(async url => {
+    urls.map(async (url) => {
       try {
         const normalizedUrl = normalizeUrl(url);
         if (!normalizedUrl) {
@@ -474,69 +554,86 @@ export async function processURLs(
         // Store normalized URL for consistent reference
         url = normalizedUrl;
 
-        const {response} = await readUrl(url, true, context.tokenTracker);
-        const {data} = response;
+        const { response } = await readUrl(url, true, context.tokenTracker);
+        const { data } = response;
         const guessedTime = await getLastModified(url);
         if (guessedTime) {
-          console.log('Guessed time for', url, guessedTime);
+          console.log("Guessed time for", url, guessedTime);
         }
 
         // Early return if no valid data
         if (!data?.url || !data?.content) {
-          throw new Error('No content found');
+          throw new Error("No content found");
         }
 
         // check if content is likely a blocked msg from paywall, bot detection, etc.
         // only check for <5000 char length content as most blocking msg is short
         const spamDetectLength = 300;
-        const isGoodContent = data.content.length > spamDetectLength || !await classifyText(data.content);
+        const isGoodContent =
+          data.content.length > spamDetectLength ||
+          !(await classifyText(data.content));
         if (!isGoodContent) {
-          console.error(`Blocked content ${data.content.length}:`, url, data.content.slice(0, spamDetectLength));
+          console.error(
+            `Blocked content ${data.content.length}:`,
+            url,
+            data.content.slice(0, spamDetectLength),
+          );
           throw new Error(`Blocked content ${url}`);
         }
 
         // Add to knowledge base
         allKnowledge.push({
           question: `What do expert say about "${question}"?`,
-          answer: await cherryPick(question, data.content, {}, context, schemaGen, url),
+          answer: await cherryPick(
+            question,
+            data.content,
+            {},
+            context,
+            schemaGen,
+            url,
+          ),
           references: [data.url],
-          type: 'url',
-          updated: guessedTime ? formatDateBasedOnType(new Date(guessedTime), 'full') : undefined
+          type: "url",
+          updated: guessedTime
+            ? formatDateBasedOnType(new Date(guessedTime), "full")
+            : undefined,
         });
 
         // Process page links
-        data.links?.forEach(link => {
+        data.links?.forEach((link) => {
           const nnUrl = normalizeUrl(link[1]);
           if (!nnUrl) return;
           const r: SearchSnippet = {
             title: link[0],
             url: nnUrl,
             description: link[0],
-          }
+          };
           // in-page link has lower initial weight comparing to search links
           if (r.url) {
             addToAllURLs(r, allURLs, 0.1);
           }
         });
 
-        return {url, result: response};
+        return { url, result: response };
       } catch (error: any) {
-        console.error('Error reading URL:', url, error);
+        console.error("Error reading URL:", url, error);
         badURLs.push(url);
         // Extract hostname from the URL
         if (
-          (error?.name === 'ParamValidationError' && error.message?.includes('Domain')) ||
-          (error?.name === 'AssertionFailureError' && error.message?.includes('resolve host name')) ||
+          (error?.name === "ParamValidationError" &&
+            error.message?.includes("Domain")) ||
+          (error?.name === "AssertionFailureError" &&
+            error.message?.includes("resolve host name")) ||
           error?.message?.includes("Couldn't resolve host name") ||
           error?.message?.includes("could not be resolved") ||
           error?.message?.includes("ERR_CERT_COMMON_NAME_INVALID") ||
           error?.message?.includes("ERR_CONNECTION_REFUSED")
         ) {
-          let hostname = '';
+          let hostname = "";
           try {
             hostname = extractUrlParts(url).hostname;
           } catch (e) {
-            console.error('Error parsing URL for hostname:', url, e);
+            console.error("Error parsing URL for hostname:", url, e);
           }
           badHostnames.push(hostname);
           console.log(`Added ${hostname} to bad hostnames list`);
@@ -550,14 +647,14 @@ export async function processURLs(
           // acknowledge the visit action is done for this URL
           context.actionTracker.trackAction({
             thisStep: {
-              action: 'visit',
-              think: '',
-              URLTargets: [url]
-            } as VisitAction
-          })
+              action: "visit",
+              think: "",
+              URLTargets: [url],
+            } as VisitAction,
+          });
         }
       }
-    })
+    }),
   );
 
   // Filter out null results without changing the original array
@@ -565,13 +662,12 @@ export async function processURLs(
 
   // remove any URL with bad hostnames from allURLs
   if (badHostnames.length > 0) {
-    Object.keys(allURLs).forEach(url => {
-        if (badHostnames.includes(extractUrlParts(url).hostname)) {
-          delete allURLs[url];
-          console.log(`Removed ${url} from allURLs`);
-        }
+    Object.keys(allURLs).forEach((url) => {
+      if (badHostnames.includes(extractUrlParts(url).hostname)) {
+        delete allURLs[url];
+        console.log(`Removed ${url} from allURLs`);
       }
-    )
+    });
   }
 
   return {
@@ -580,7 +676,10 @@ export async function processURLs(
   };
 }
 
-export function fixBadURLMdLinks(mdContent: string, allURLs: Record<string, SearchSnippet>): string {
+export function fixBadURLMdLinks(
+  mdContent: string,
+  allURLs: Record<string, SearchSnippet>,
+): string {
   // Regular expression to find markdown links with the pattern [url](url)
   const mdLinkRegex = /\[([^\]]+)]\(([^)]+)\)/g;
 

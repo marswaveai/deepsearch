@@ -1,14 +1,14 @@
-import {z} from 'zod';
+import { z } from "zod";
 import {
   CoreMessage,
   generateObject,
   LanguageModelUsage,
   NoObjectGeneratedError,
-  Schema
+  Schema,
 } from "ai";
-import {TokenTracker} from "./token-tracker";
-import {getModel, ToolName, getToolConfig} from "../config";
-import Hjson from 'hjson'; // Import Hjson library
+import { TokenTracker } from "./token-tracker";
+import { getModel, ToolName, getToolConfig } from "../config";
+import Hjson from "hjson"; // Import Hjson library
 
 interface GenerateObjectResult<T> {
   object: T;
@@ -35,14 +35,16 @@ export class ObjectGeneratorSafe {
    * Creates a distilled version of a schema by removing all descriptions
    * This makes the schema simpler for fallback parsing scenarios
    */
-  private createDistilledSchema<T>(schema: z.ZodType<T> | Schema<T>): z.ZodType<T> | Schema<T> {
+  private createDistilledSchema<T>(
+    schema: z.ZodType<T> | Schema<T>,
+  ): z.ZodType<T> | Schema<T> {
     // For zod schemas
     if (schema instanceof z.ZodType) {
       return this.stripZodDescriptions(schema);
     }
 
     // For AI SDK Schema objects
-    if (typeof schema === 'object' && schema !== null) {
+    if (typeof schema === "object" && schema !== null) {
       return this.stripSchemaDescriptions(schema as Schema<T>);
     }
 
@@ -69,7 +71,9 @@ export class ObjectGeneratorSafe {
     }
 
     if (zodSchema instanceof z.ZodArray) {
-      return z.array(this.stripZodDescriptions(zodSchema._def.type)) as unknown as z.ZodType<T>;
+      return z.array(
+        this.stripZodDescriptions(zodSchema._def.type),
+      ) as unknown as z.ZodType<T>;
     }
 
     if (zodSchema instanceof z.ZodString) {
@@ -77,7 +81,10 @@ export class ObjectGeneratorSafe {
       return z.string() as unknown as z.ZodType<T>;
     }
 
-    if (zodSchema instanceof z.ZodUnion || zodSchema instanceof z.ZodIntersection) {
+    if (
+      zodSchema instanceof z.ZodUnion ||
+      zodSchema instanceof z.ZodIntersection
+    ) {
       // These are more complex schemas that would need special handling
       // This is a simplified implementation
       return zodSchema;
@@ -97,7 +104,7 @@ export class ObjectGeneratorSafe {
 
     // Recursively remove description properties
     const removeDescriptions = (obj: any) => {
-      if (typeof obj !== 'object' || obj === null) return;
+      if (typeof obj !== "object" || obj === null) return;
 
       if (obj.properties) {
         for (const key in obj.properties) {
@@ -129,18 +136,13 @@ export class ObjectGeneratorSafe {
     return clonedSchema;
   }
 
-  async generateObject<T>(options: GenerateOptions<T>): Promise<GenerateObjectResult<T>> {
-    const {
-      model,
-      schema,
-      prompt,
-      system,
-      messages,
-      numRetries = 0,
-    } = options;
+  async generateObject<T>(
+    options: GenerateOptions<T>,
+  ): Promise<GenerateObjectResult<T>> {
+    const { model, schema, prompt, system, messages, numRetries = 0 } = options;
 
     if (!model || !schema) {
-      throw new Error('Model and schema are required parameters');
+      throw new Error("Model and schema are required parameters");
     }
 
     try {
@@ -157,57 +159,62 @@ export class ObjectGeneratorSafe {
 
       this.tokenTracker.trackUsage(model, result.usage);
       return result;
-
     } catch (error) {
       // First fallback: Try manual parsing of the error response
       try {
         const errorResult = await this.handleGenerateObjectError<T>(error);
         this.tokenTracker.trackUsage(model, errorResult.usage);
         return errorResult;
-
       } catch (parseError) {
-
         if (numRetries > 0) {
-          console.error(`${model} failed on object generation -> manual parsing failed -> retry with ${numRetries - 1} retries remaining`);
+          console.error(
+            `${model} failed on object generation -> manual parsing failed -> retry with ${numRetries - 1} retries remaining`,
+          );
           return this.generateObject({
             model,
             schema,
             prompt,
             system,
             messages,
-            numRetries: numRetries - 1
+            numRetries: numRetries - 1,
           });
         } else {
           // Second fallback: Try with fallback model if provided
-          console.error(`${model} failed on object generation -> manual parsing failed -> trying fallback with distilled schema`);
+          console.error(
+            `${model} failed on object generation -> manual parsing failed -> trying fallback with distilled schema`,
+          );
           try {
-            let failedOutput = '';
+            let failedOutput = "";
 
             if (NoObjectGeneratedError.isInstance(parseError)) {
               failedOutput = (parseError as any).text;
               // find last `"url":` appear in the string, which is the source of the problem
-              failedOutput = failedOutput.slice(0, Math.min(failedOutput.lastIndexOf('"url":'), 8000));
+              failedOutput = failedOutput.slice(
+                0,
+                Math.min(failedOutput.lastIndexOf('"url":'), 8000),
+              );
             }
 
             // Create a distilled version of the schema without descriptions
             const distilledSchema = this.createDistilledSchema(schema);
 
             const fallbackResult = await generateObject({
-              model: getModel('fallback'),
+              model: getModel("fallback"),
               schema: distilledSchema,
               prompt: `Following the given JSON schema, extract the field from below: \n\n ${failedOutput}`,
-              maxTokens: getToolConfig('fallback').maxTokens,
-              temperature: getToolConfig('fallback').temperature,
+              maxTokens: getToolConfig("fallback").maxTokens,
+              temperature: getToolConfig("fallback").temperature,
             });
 
-            this.tokenTracker.trackUsage('fallback', fallbackResult.usage); // Track against fallback model
-            console.log('Distilled schema parse success!');
+            this.tokenTracker.trackUsage("fallback", fallbackResult.usage); // Track against fallback model
+            console.log("Distilled schema parse success!");
             return fallbackResult;
           } catch (fallbackError) {
             // If fallback model also fails, try parsing its error response
             try {
-              const lastChanceResult = await this.handleGenerateObjectError<T>(fallbackError);
-              this.tokenTracker.trackUsage('fallback', lastChanceResult.usage);
+              const lastChanceResult =
+                await this.handleGenerateObjectError<T>(fallbackError);
+              this.tokenTracker.trackUsage("fallback", lastChanceResult.usage);
               return lastChanceResult;
             } catch (finalError) {
               console.error(`All recovery mechanisms failed`);
@@ -219,28 +226,32 @@ export class ObjectGeneratorSafe {
     }
   }
 
-  private async handleGenerateObjectError<T>(error: unknown): Promise<GenerateObjectResult<T>> {
+  private async handleGenerateObjectError<T>(
+    error: unknown,
+  ): Promise<GenerateObjectResult<T>> {
     if (NoObjectGeneratedError.isInstance(error)) {
-      console.error('Object not generated according to schema, fallback to manual parsing');
+      console.error(
+        "Object not generated according to schema, fallback to manual parsing",
+      );
       try {
         // First try standard JSON parsing
         const partialResponse = JSON.parse((error as any).text);
-        console.log('JSON parse success!')
+        console.log("JSON parse success!");
         return {
           object: partialResponse as T,
-          usage: (error as any).usage
+          usage: (error as any).usage,
         };
       } catch (parseError) {
         // Use Hjson to parse the error response for more lenient parsing
         try {
           const hjsonResponse = Hjson.parse((error as any).text);
-          console.log('Hjson parse success!')
+          console.log("Hjson parse success!");
           return {
             object: hjsonResponse as T,
-            usage: (error as any).usage
+            usage: (error as any).usage,
           };
         } catch (hjsonError) {
-          console.error('Both JSON and Hjson parsing failed:', hjsonError);
+          console.error("Both JSON and Hjson parsing failed:", hjsonError);
           throw error;
         }
       }
@@ -248,3 +259,4 @@ export class ObjectGeneratorSafe {
     throw error;
   }
 }
+

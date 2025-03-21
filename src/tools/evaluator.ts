@@ -1,13 +1,23 @@
-import {GenerateObjectResult} from 'ai';
-import {AnswerAction, EvaluationResponse, EvaluationType, KnowledgeItem, PromptPair, TrackerContext} from '../types';
-import {ObjectGeneratorSafe} from "../utils/safe-generator";
-import {Schemas} from "../utils/schemas";
-import {getKnowledgeStr} from "../utils/text-tools";
+import { GenerateObjectResult } from "ai";
+import {
+  AnswerAction,
+  EvaluationResponse,
+  EvaluationType,
+  KnowledgeItem,
+  PromptPair,
+  TrackerContext,
+} from "../types";
+import { ObjectGeneratorSafe } from "../utils/safe-generator";
+import { Schemas } from "../utils/schemas";
+import { getKnowledgeStr } from "../utils/text-tools";
 
-const TOOL_NAME = 'evaluator';
+const TOOL_NAME = "evaluator";
 
-
-function getRejectAllAnswersPrompt(question: string, answer: AnswerAction, allKnowledge: KnowledgeItem[]): PromptPair {
+function getRejectAllAnswersPrompt(
+  question: string,
+  answer: AnswerAction,
+  allKnowledge: KnowledgeItem[],
+): PromptPair {
   const KnowledgeStr = getKnowledgeStr(allKnowledge);
 
   return {
@@ -25,7 +35,7 @@ If multiple sections have very similar structure, suggest another presentation f
 Do not encourage deeply nested structure, flatten it into natural language sections/paragraphs or even tables. Every table should use HTML table syntax <table> <thead> <tr> <th> <td> without any CSS styling.
 
 The following knowledge items are provided for your reference. Note that some of them may not be directly related to the question/answer user provided, but may give some subtle hints and insights:
-${KnowledgeStr.join('\n\n')}
+${KnowledgeStr.join("\n\n")}
 `,
     user: `
 Dear reviewer, I need your feedback on the following question-answer pair:
@@ -40,10 +50,9 @@ ${answer.answer}
 </answer>
  
 Could you please evaluate it based on your knowledge and strict standards? Let me know how to improve it.
-`
-  }
+`,
+  };
 }
-
 
 function getDefinitivePrompt(question: string, answer: string): PromptPair {
   return {
@@ -97,8 +106,8 @@ Evaluation: {
   "pass": false,
 }
 
-Question: "what is the twitter account of jina ai's founder?"
-Answer: "The provided text does not contain the Twitter account of Jina AI's founder."
+Question: "what is the twitter account of facebook's founder?"
+Answer: "The provided text does not contain the Twitter account of Facebook's founder."
 Evaluation: {
   "think": "The answer indicates a lack of information rather than providing a definitive response."
   "pass": false,
@@ -148,11 +157,15 @@ Evaluation: {
 </examples>`,
     user: `
 Question: ${question}
-Answer: ${answer}`
+Answer: ${answer}`,
   };
 }
 
-function getFreshnessPrompt(question: string, answer: AnswerAction, currentTime: string): PromptPair {
+function getFreshnessPrompt(
+  question: string,
+  answer: AnswerAction,
+  currentTime: string,
+): PromptPair {
   return {
     system: `You are an evaluator that analyzes if answer content is likely outdated based on mentioned dates (or implied datetime) and current system time: ${currentTime}
 
@@ -213,8 +226,8 @@ Answer:
 ${JSON.stringify(answer)}
 
 Please look at my answer and references and think.
-`
-  }
+`,
+  };
 }
 
 function getCompletenessPrompt(question: string, answer: string): PromptPair {
@@ -304,8 +317,8 @@ Question: ${question}
 Answer: ${answer}
 
 Please look at my answer and think.
-`
-  }
+`,
+  };
 }
 
 function getPluralityPrompt(question: string, answer: string): PromptPair {
@@ -345,16 +358,14 @@ Question Type Reference Table
 | Unspecified Analysis | 3-5 key points | Default to 3-5 main points covering primary aspects with balanced breadth and depth. |
 </rules>
 `,
-    user:
-      `
+    user: `
 Question: ${question}
 Answer: ${answer}
 
 Please look at my answer and think.
-`
-  }
+`,
+  };
 }
-
 
 function getQuestionEvaluationPrompt(question: string): PromptPair {
   return {
@@ -549,17 +560,16 @@ This is a classic philosophical paradox that is inherently unanswerable in a def
 </examples>
 
 `,
-    user:
-      `
+    user: `
 ${question}
-<think>`
+<think>`,
   };
 }
 
 export async function evaluateQuestion(
   question: string,
   trackers: TrackerContext,
-  schemaGen: Schemas
+  schemaGen: Schemas,
 ): Promise<EvaluationType[]> {
   try {
     const generator = new ObjectGeneratorSafe(trackers.tokenTracker);
@@ -569,53 +579,50 @@ export async function evaluateQuestion(
       model: TOOL_NAME,
       schema: schemaGen.getQuestionEvaluateSchema(),
       system: prompt.system,
-      prompt: prompt.user
+      prompt: prompt.user,
     });
 
-    console.log('Question Evaluation:', result.object);
+    console.log("Question Evaluation:", result.object);
 
     // Always include definitive in types
     const types: EvaluationType[] = [];
-    if (result.object.needsDefinitive) types.push('definitive');
-    if (result.object.needsFreshness) types.push('freshness');
-    if (result.object.needsPlurality) types.push('plurality');
-    if (result.object.needsCompleteness) types.push('completeness');
+    if (result.object.needsDefinitive) types.push("definitive");
+    if (result.object.needsFreshness) types.push("freshness");
+    if (result.object.needsPlurality) types.push("plurality");
+    if (result.object.needsCompleteness) types.push("completeness");
 
-    console.log('Question Metrics:', question, types);
+    console.log("Question Metrics:", question, types);
     trackers?.actionTracker.trackThink(result.object.think);
 
     // Always evaluate definitive first, then freshness (if needed), then plurality (if needed)
     return types;
-
   } catch (error) {
-    console.error('Error in question evaluation:', error);
+    console.error("Error in question evaluation:", error);
     // Default to no check
     return [];
   }
 }
 
-
 async function performEvaluation<T>(
   evaluationType: EvaluationType,
   prompt: PromptPair,
   trackers: TrackerContext,
-  schemaGen: Schemas
+  schemaGen: Schemas,
 ): Promise<GenerateObjectResult<T>> {
   const generator = new ObjectGeneratorSafe(trackers.tokenTracker);
-  const result = await generator.generateObject({
+  const result = (await generator.generateObject({
     model: TOOL_NAME,
     schema: schemaGen.getEvaluatorSchema(evaluationType),
     system: prompt.system,
-    prompt: prompt.user
-  }) as GenerateObjectResult<any>;
+    prompt: prompt.user,
+  })) as GenerateObjectResult<any>;
 
-  trackers.actionTracker.trackThink(result.object.think)
+  trackers.actionTracker.trackThink(result.object.think);
 
   console.log(`${evaluationType} ${TOOL_NAME}`, result.object);
 
   return result;
 }
-
 
 // Main evaluation function
 export async function evaluateAnswer(
@@ -624,28 +631,26 @@ export async function evaluateAnswer(
   evaluationTypes: EvaluationType[],
   trackers: TrackerContext,
   allKnowledge: KnowledgeItem[],
-  schemaGen: Schemas
+  schemaGen: Schemas,
 ): Promise<EvaluationResponse> {
   let result;
 
-
   for (const evaluationType of evaluationTypes) {
-    let prompt: { system: string; user: string } | undefined
+    let prompt: { system: string; user: string } | undefined;
     switch (evaluationType) {
-
-      case 'definitive':
+      case "definitive":
         prompt = getDefinitivePrompt(question, action.answer);
         break;
-      case 'freshness':
+      case "freshness":
         prompt = getFreshnessPrompt(question, action, new Date().toISOString());
         break;
-      case 'plurality':
+      case "plurality":
         prompt = getPluralityPrompt(question, action.answer);
         break;
-      case 'completeness':
+      case "completeness":
         prompt = getCompletenessPrompt(question, action.answer);
         break;
-      case 'strict':
+      case "strict":
         prompt = getRejectAllAnswersPrompt(question, action, allKnowledge);
         break;
       default:
@@ -656,7 +661,7 @@ export async function evaluateAnswer(
         evaluationType,
         prompt,
         trackers,
-        schemaGen
+        schemaGen,
       );
 
       // fail one, return immediately
@@ -667,5 +672,4 @@ export async function evaluateAnswer(
   }
 
   return result?.object as EvaluationResponse;
-
 }

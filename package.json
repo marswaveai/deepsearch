@@ -1,7 +1,18 @@
 {
   "name": "node-deepresearch",
   "version": "1.0.0",
-  "main": "dist/app.js",
+  "main": "./dist/app.js",
+  "types": "./dist/app.d.ts",
+  "exports": {
+    "./agent": {
+      "default": "./dist/agent.js",
+      "types": "./dist/agent.d.ts"
+    },
+    "./agent-helper": {
+      "default": "./dist/agent-helper.js",
+      "types": "./dist/agent.d.ts"
+    }
+  },
   "files": [
     "dist",
     "README.md",
@@ -22,12 +33,12 @@
     "test:docker": "jest src/__tests__/docker.test.ts --testTimeout=300000"
   },
   "keywords": [],
-  "author": "Jina AI",
-  "license": "Apache-2.0",
+  "author": "",
   "description": "",
   "dependencies": {
     "@ai-sdk/google": "^1.0.0",
     "@ai-sdk/openai": "^1.1.9",
+    "@openrouter/ai-sdk-provider": "^0.4.3",
     "@types/jsdom": "^21.1.7",
     "ai": "^4.1.26",
     "axios": "^1.7.9",

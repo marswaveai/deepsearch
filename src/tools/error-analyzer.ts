@@ -1,7 +1,6 @@
-import {ErrorAnalysisResponse, PromptPair, TrackerContext} from '../types';
-import {ObjectGeneratorSafe} from "../utils/safe-generator";
-import {Schemas} from "../utils/schemas";
-
+import { ErrorAnalysisResponse, PromptPair, TrackerContext } from "../types";
+import { ObjectGeneratorSafe } from "../utils/safe-generator";
+import { Schemas } from "../utils/schemas";
 
 function getPrompt(diaryContext: string[]): PromptPair {
   return {
@@ -85,16 +84,16 @@ The answer is not definitive and fails to provide the requested information.  La
 }
 </output>
 </example>`,
-    user: `${diaryContext.join('\n')}`
-  }
+    user: `${diaryContext.join("\n")}`,
+  };
 }
 
-const TOOL_NAME = 'errorAnalyzer';
+const TOOL_NAME = "errorAnalyzer";
 
 export async function analyzeSteps(
   diaryContext: string[],
   trackers: TrackerContext,
-  schemaGen: Schemas
+  schemaGen: Schemas,
 ): Promise<ErrorAnalysisResponse> {
   try {
     const generator = new ObjectGeneratorSafe(trackers?.tokenTracker);
@@ -104,7 +103,7 @@ export async function analyzeSteps(
       model: TOOL_NAME,
       schema: schemaGen.getErrorAnalysisSchema(),
       system: prompt.system,
-      prompt: prompt.user
+      prompt: prompt.user,
     });
 
     console.log(TOOL_NAME, result.object);
@@ -112,9 +111,9 @@ export async function analyzeSteps(
     trackers?.actionTracker.trackThink(result.object.improvement);
 
     return result.object as ErrorAnalysisResponse;
-
   } catch (error) {
     console.error(`Error in ${TOOL_NAME}`, error);
     throw error;
   }
 }
+

@@ -1,14 +1,13 @@
-import 'reflect-metadata'
-import express from 'express';
+import "reflect-metadata";
+import express from "express";
 import { jinaAiMiddleware } from "./patch-express";
-import { Server } from 'http';
+import { Server } from "http";
 
-const app = require('../..').default;
+const app = require("../..").default;
 
 const rootApp = express();
-rootApp.set('trust proxy', true);
+rootApp.set("trust proxy", true);
 rootApp.use(jinaAiMiddleware, app);
-
 
 const port = process.env.PORT || 3000;
 
@@ -21,19 +20,19 @@ export function startServer() {
 }
 
 // Start server if running directly
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== "test") {
   server = startServer();
 }
 
-process.on('unhandledRejection', (_err) => `Is false alarm`);
+process.on("unhandledRejection", (_err) => `Is false alarm`);
 
-process.on('uncaughtException', (err) => {
-  console.log('Uncaught exception', err);
+process.on("uncaughtException", (err) => {
+  console.log("Uncaught exception", err);
 
   // Looks like Firebase runtime does not handle error properly.
   // Make sure to quit the process.
   process.nextTick(() => process.exit(1));
-  console.error('Uncaught exception, process quit.');
+  console.error("Uncaught exception, process quit.");
   throw err;
 });
 
@@ -44,14 +43,14 @@ const sigHandler = (signal: string) => {
     console.log(`Waiting for the server to drain and close...`);
     server.close((err) => {
       if (err) {
-        console.error('Error while closing server', err);
+        console.error("Error while closing server", err);
         return;
       }
       process.exit(0);
     });
     server.closeIdleConnections();
   }
+};
+process.on("SIGTERM", sigHandler);
+process.on("SIGINT", sigHandler);
 
-}
-process.on('SIGTERM', sigHandler);
-process.on('SIGINT', sigHandler);
