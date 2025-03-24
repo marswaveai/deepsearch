@@ -1,11 +1,17 @@
-import {BoostedSearchSnippet, KnowledgeItem, SearchSnippet, TrackerContext, VisitAction} from "../types";
-import {getI18nText, smartMergeStrings} from "./text-tools";
-import {rerankDocuments} from "../tools/jina-rerank";
-import {readUrl} from "../tools/read";
-import {Schemas} from "./schemas";
-import {cherryPick} from "../tools/jina-latechunk";
-import {formatDateBasedOnType} from "./date-tools";
-import {classifyText} from "../tools/jina-classify-spam";
+import {
+  BoostedSearchSnippet,
+  KnowledgeItem,
+  SearchSnippet,
+  TrackerContext,
+  VisitAction,
+} from "../types";
+import { getI18nText, smartMergeStrings } from "./text-tools";
+import { rerankDocuments } from "../tools/jina-rerank";
+import { readUrl } from "../tools/read";
+import { Schemas } from "./schemas";
+import { cherryPick } from "../tools/jina-latechunk";
+import { formatDateBasedOnType } from "./date-tools";
+import { classifyText } from "../tools/jina-classify-spam";
 
 export function normalizeUrl(
   urlString: string,
@@ -16,7 +22,7 @@ export function normalizeUrl(
     removeUTMParams: true,
     removeTrackingParams: true,
     removeXAnalytics: true, // New option to control x.com /analytics removal
-  },
+  }
 ) {
   try {
     urlString = urlString.replace(/\s+/g, "").trim();
@@ -109,7 +115,7 @@ export function normalizeUrl(
         if (
           options.removeSessionIDs &&
           /^(s|session|sid|sessionid|phpsessid|jsessionid|aspsessionid|asp\.net_sessionid)$/i.test(
-            key,
+            key
           )
         ) {
           return false;
@@ -124,7 +130,7 @@ export function normalizeUrl(
         if (
           options.removeTrackingParams &&
           /^(ref|referrer|fbclid|gclid|cid|mcid|source|medium|campaign|term|content|sc_rid|mc_[a-z]+)$/i.test(
-            key,
+            key
           )
         ) {
           return false;
@@ -186,9 +192,20 @@ export function normalizeUrl(
   }
 }
 
-export function filterURLs(allURLs: Record<string, SearchSnippet>, visitedURLs: string[], badHostnames: string[], onlyHostnames: string[]): SearchSnippet[] {
+export function filterURLs(
+  allURLs: Record<string, SearchSnippet>,
+  visitedURLs: string[],
+  badHostnames: string[],
+  onlyHostnames: string[]
+): SearchSnippet[] {
   return Object.entries(allURLs)
-    .filter(([url,]) => !visitedURLs.includes(url) && !badHostnames.includes(extractUrlParts(url).hostname) && (onlyHostnames.length === 0 || onlyHostnames.includes(extractUrlParts(url).hostname)))
+    .filter(
+      ([url]) =>
+        !visitedURLs.includes(url) &&
+        !badHostnames.includes(extractUrlParts(url).hostname) &&
+        (onlyHostnames.length === 0 ||
+          onlyHostnames.includes(extractUrlParts(url).hostname))
+    )
     .map(([, result]) => result);
 }
 
@@ -249,7 +266,7 @@ const normalizeCount = (count: any, total: any) => {
 export const rankURLs = (
   urlItems: SearchSnippet[],
   options: any = {},
-  trackers: TrackerContext,
+  trackers: TrackerContext
 ): any[] => {
   // Default parameters for boosting - can be overridden
   const {
@@ -299,7 +316,7 @@ export const rankURLs = (
               boost;
           });
         });
-      },
+      }
     );
   }
 
@@ -318,7 +335,7 @@ export const rankURLs = (
       // Hostname boost (normalized by total URLs)
       const hostnameFreq = normalizeCount(
         hostnameCount[hostname] || 0,
-        totalUrls,
+        totalUrls
       );
       const hostnameBoost =
         hostnameFreq *
@@ -347,9 +364,9 @@ export const rankURLs = (
       const finalScore = Math.min(
         Math.max(
           hostnameBoost + pathBoost + freqBoost + jinaRerankBoost,
-          minBoost,
+          minBoost
         ),
-        maxBoost,
+        maxBoost
       );
 
       return {
@@ -367,7 +384,7 @@ export const rankURLs = (
 export const addToAllURLs = (
   r: SearchSnippet,
   allURLs: Record<string, SearchSnippet>,
-  weightDelta = 1,
+  weightDelta = 1
 ) => {
   const nURL = normalizeUrl(r.url);
   if (!nURL) return 0;
@@ -385,7 +402,7 @@ export const addToAllURLs = (
 
 export const weightedURLToString = (
   allURLs: BoostedSearchSnippet[],
-  maxURLs = 70,
+  maxURLs = 70
 ) => {
   if (!allURLs || allURLs.length === 0) return "";
 
@@ -400,13 +417,13 @@ export const weightedURLToString = (
     })
     .filter(
       (item) =>
-        item.merged !== "" && item.merged !== undefined && item.merged !== null,
+        item.merged !== "" && item.merged !== undefined && item.merged !== null
     )
     .sort((a, b) => (b.score || 0) - (a.score || 0))
     .slice(0, maxURLs)
     .map(
       (item) =>
-        `  + weight: ${item.score.toFixed(2)} "${item.url}": "${item.merged}"`,
+        `  + weight: ${item.score.toFixed(2)} "${item.url}": "${item.merged}"`
     )
     .join("\n");
 };
@@ -453,11 +470,13 @@ export function sampleMultinomial<T>(items: [T, number][]): T | null {
  * @returns Promise containing the last modified date or null if not found
  */
 export async function getLastModified(
-  url: string,
+  url: string
 ): Promise<string | undefined> {
   try {
     // Call the API with proper encoding
-    const apiUrl = `https://api-beta-datetime.jina.ai?url=${encodeURIComponent(url)}`;
+    const apiUrl = `https://api-beta-datetime.jina.ai?url=${encodeURIComponent(
+      url
+    )}`;
     const response = await fetch(apiUrl);
 
     if (!response.ok) {
@@ -480,7 +499,7 @@ export async function getLastModified(
 
 export const keepKPerHostname = (
   results: BoostedSearchSnippet[],
-  k: number,
+  k: number
 ) => {
   const hostnameMap: Record<string, number> = {};
   const filteredResults: BoostedSearchSnippet[] = [];
@@ -508,7 +527,7 @@ export async function processURLs(
   visitedURLs: string[],
   badURLs: string[],
   schemaGen: Schemas,
-  question: string,
+  question: string
 ): Promise<{ urlResults: any[]; success: boolean }> {
   // Skip if no URLs to process
   if (urls.length === 0) {
@@ -561,7 +580,7 @@ export async function processURLs(
           console.error(
             `Blocked content ${data.content.length}:`,
             url,
-            data.content.slice(0, spamDetectLength),
+            data.content.slice(0, spamDetectLength)
           );
           throw new Error(`Blocked content ${url}`);
         }
@@ -575,7 +594,7 @@ export async function processURLs(
             {},
             context,
             schemaGen,
-            url,
+            url
           ),
           references: [data.url],
           type: "url",
@@ -639,7 +658,7 @@ export async function processURLs(
           });
         }
       }
-    }),
+    })
   );
 
   // Filter out null results without changing the original array
@@ -663,7 +682,7 @@ export async function processURLs(
 
 export function fixBadURLMdLinks(
   mdContent: string,
-  allURLs: Record<string, SearchSnippet>,
+  allURLs: Record<string, SearchSnippet>
 ): string {
   // Regular expression to find markdown links with the pattern [url](url)
   const mdLinkRegex = /\[([^\]]+)]\(([^)]+)\)/g;

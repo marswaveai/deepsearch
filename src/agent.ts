@@ -16,7 +16,12 @@ import {
   KnowledgeItem,
   EvaluationType,
   BoostedSearchSnippet,
-  SearchSnippet, EvaluationResponse, Reference, SERPQuery, RepeatEvaluationType, UnNormalizedSearchSnippet
+  SearchSnippet,
+  EvaluationResponse,
+  Reference,
+  SERPQuery,
+  RepeatEvaluationType,
+  UnNormalizedSearchSnippet,
 } from "./types";
 import { TrackerContext } from "./types";
 import { search } from "./tools/jina-search";
@@ -97,7 +102,7 @@ function composeMsgs(
   messages: CoreMessage[],
   knowledge: KnowledgeItem[],
   question: string,
-  finalAnswerPIP?: string[],
+  finalAnswerPIP?: string[]
 ) {
   // knowledge always put to front, followed by real u-a interaction
   const msgs = [...BuildMsgsFromKnowledge(knowledge), ...messages];
@@ -118,7 +123,7 @@ ${finalAnswerPIP
 <reviewer-${idx + 1}>
 ${p}
 </reviewer-${idx + 1}>
-`,
+`
   )
   .join("\n")}
 </answer-requirements>`
@@ -141,7 +146,7 @@ function getPrompt(
   allowCoding: boolean = true,
   knowledge?: KnowledgeItem[],
   allURLs?: BoostedSearchSnippet[],
-  beastMode?: boolean,
+  beastMode?: boolean
 ): string {
   const sections: string[] = [];
   const actionSections: string[] = [];
@@ -263,7 +268,7 @@ ${actionSections.join("\n\n")}
 
   // Add footer
   sections.push(
-    `Think step by step, choose the action, then respond by matching the schema of that action.`,
+    `Think step by step, choose the action, then respond by matching the schema of that action.`
   );
 
   return removeExtraLineBreaks(sections.join("\n\n"));
@@ -277,7 +282,7 @@ function updateContext(step: any) {
 
 async function updateReferences(
   thisStep: AnswerAction,
-  allURLs: Record<string, SearchSnippet>,
+  allURLs: Record<string, SearchSnippet>
 ) {
   thisStep.references = thisStep.references
     ?.filter((ref) => ref?.url)
@@ -296,7 +301,7 @@ async function updateReferences(
           .replace(/\s+/g, " "),
         title: allURLs[normalizedUrl]?.title || "",
         url: normalizedUrl,
-        dateTime: ref?.dateTime || allURLs[normalizedUrl]?.date || '',
+        dateTime: ref?.dateTime || allURLs[normalizedUrl]?.date || "",
       };
     })
     .filter(Boolean) as Reference[]; // Add type assertion here
@@ -307,7 +312,7 @@ async function updateReferences(
       .filter((ref) => !ref.dateTime)
       .map(async (ref) => {
         ref.dateTime = (await getLastModified(ref.url)) || "";
-      }),
+      })
   );
 }
 
@@ -332,7 +337,7 @@ async function executeSearchQueries(
     let results: UnNormalizedSearchSnippet[] = [];
     const oldQuery = query.q;
     if (onlyHostnames && onlyHostnames.length > 0) {
-      query.q = `${query.q} site:${onlyHostnames.join(' OR site:')}`;
+      query.q = `${query.q} site:${onlyHostnames.join(" OR site:")}`;
     }
 
     try {
@@ -364,7 +369,7 @@ async function executeSearchQueries(
       console.error(
         `${SEARCH_PROVIDER} search failed for query:`,
         query,
-        error,
+        error
       );
       continue;
     } finally {
@@ -372,14 +377,14 @@ async function executeSearchQueries(
     }
 
     const minResults: SearchSnippet[] = results
-      .map(r => {
-        const url = normalizeUrl('url' in r ? r.url! : r.link!);
+      .map((r) => {
+        const url = normalizeUrl("url" in r ? r.url! : r.link!);
         if (!url) return null; // Skip invalid URLs
 
         return {
           title: r.title,
           url,
-          description: 'description' in r ? r.description : r.snippet,
+          description: "description" in r ? r.description : r.snippet,
           weight: 1,
           date: r.date,
         } as SearchSnippet;
@@ -401,13 +406,23 @@ async function executeSearchQueries(
   }
   if (searchedQueries.length === 0) {
     if (onlyHostnames && onlyHostnames.length > 0) {
-      console.log(`No results found for queries: ${uniqQOnly.join(', ')} on hostnames: ${onlyHostnames.join(', ')}`);
-      context.actionTracker.trackThink('hostnames_no_results', SchemaGen.languageCode, {hostnames: onlyHostnames.join(', ')});
+      console.log(
+        `No results found for queries: ${uniqQOnly.join(
+          ", "
+        )} on hostnames: ${onlyHostnames.join(", ")}`
+      );
+      context.actionTracker.trackThink(
+        "hostnames_no_results",
+        SchemaGen.languageCode,
+        { hostnames: onlyHostnames.join(", ") }
+      );
     }
   } else {
     console.log(`Utility/Queries: ${utilityScore}/${searchedQueries.length}`);
     if (searchedQueries.length > MAX_QUERIES_PER_STEP) {
-      console.log(`So many queries??? ${searchedQueries.map(q => `"${q}"`).join(', ')}`)
+      console.log(
+        `So many queries??? ${searchedQueries.map((q) => `"${q}"`).join(", ")}`
+      );
     }
   }
   return {
@@ -418,23 +433,29 @@ async function executeSearchQueries(
 
 function includesEval(
   allChecks: RepeatEvaluationType[],
-  evalType: EvaluationType,
+  evalType: EvaluationType
 ): boolean {
   return allChecks.some((c) => c.type === evalType);
 }
 
-export async function getResponse(question?: string,
-                                  tokenBudget: number = 1_000_000,
-                                  maxBadAttempts: number = 2,
-                                  existingContext?: Partial<TrackerContext>,
-                                  messages?: Array<CoreMessage>,
-                                  numReturnedURLs: number = 100,
-                                  noDirectAnswer: boolean = false,
-                                  boostHostnames: string[] = [],
-                                  badHostnames: string[] = [],
-                                  onlyHostnames: string[] = []
-): Promise<{ result: StepAction; context: TrackerContext; visitedURLs: string[], readURLs: string[], allURLs: string[] }> {
-
+export async function getResponse(
+  question?: string,
+  tokenBudget: number = 1_000_000,
+  maxBadAttempts: number = 2,
+  existingContext?: Partial<TrackerContext>,
+  messages?: Array<CoreMessage>,
+  numReturnedURLs: number = 100,
+  noDirectAnswer: boolean = false,
+  boostHostnames: string[] = [],
+  badHostnames: string[] = [],
+  onlyHostnames: string[] = []
+): Promise<{
+  result: StepAction;
+  context: TrackerContext;
+  visitedURLs: string[];
+  readURLs: string[];
+  allURLs: string[];
+}> {
   let step = 0;
   let totalStep = 0;
 
@@ -470,7 +491,7 @@ export async function getResponse(question?: string,
     true,
     true,
     true,
-    true,
+    true
   );
   const gaps: string[] = [question]; // All questions to be answered including the orginal question
   const allQuestions = [question];
@@ -547,7 +568,6 @@ export async function getResponse(question?: string,
       allowReflect = false;
     }
 
-
     if (allURLs && Object.keys(allURLs).length > 0) {
       // rerank urls
       weightedURLs = rankURLs(
@@ -556,13 +576,13 @@ export async function getResponse(question?: string,
           question: currentQuestion,
           boostHostnames,
         },
-        context,
+        context
       );
       // improve diversity by keep top 2 urls of each hostname
       weightedURLs = keepKPerHostname(weightedURLs, 2);
       console.log("Weighted URLs:", weightedURLs.length);
     }
-    allowRead = allowRead && (weightedURLs.length > 0);
+    allowRead = allowRead && weightedURLs.length > 0;
 
     allowSearch = allowSearch && weightedURLs.length < 200; // disable search when too many urls already
 
@@ -578,7 +598,7 @@ export async function getResponse(question?: string,
       allowCoding,
       allKnowledge,
       weightedURLs,
-      false,
+      false
     );
     schema = SchemaGen.getAgentSchema(
       allowReflect,
@@ -586,13 +606,13 @@ export async function getResponse(question?: string,
       allowAnswer,
       allowSearch,
       allowCoding,
-      currentQuestion,
+      currentQuestion
     );
     msgWithKnowledge = composeMsgs(
       messages,
       allKnowledge,
       currentQuestion,
-      currentQuestion === question ? finalAnswerPIP : undefined,
+      currentQuestion === question ? finalAnswerPIP : undefined
     );
     const result = await generator.generateObject({
       model: "agent",
@@ -652,7 +672,7 @@ export async function getResponse(question?: string,
             ?.filter((ref) => !visitedURLs.includes(ref.url))
             .map((ref) => ref.url) || [];
         const uniqueNewURLs = [...new Set(urls)].filter((u) =>
-          u.startsWith("http"),
+          u.startsWith("http")
         );
         await processURLs(
           uniqueNewURLs,
@@ -662,12 +682,12 @@ export async function getResponse(question?: string,
           visitedURLs,
           badURLs,
           SchemaGen,
-          currentQuestion,
+          currentQuestion
         );
 
         // remove references whose urls are in badURLs
         thisStep.references = thisStep.references.filter(
-          (ref) => !badURLs.includes(ref.url),
+          (ref) => !badURLs.includes(ref.url)
         );
       }
 
@@ -688,7 +708,7 @@ export async function getResponse(question?: string,
             evaluationMetrics[currentQuestion].map((e) => e.type),
             context,
             allKnowledge,
-            SchemaGen,
+            SchemaGen
           )) || evaluation;
       }
 
@@ -752,7 +772,7 @@ ${evaluation.think}
           const errorAnalysis = await analyzeSteps(
             diaryContext,
             context,
-            SchemaGen,
+            SchemaGen
           );
 
           allKnowledge.push({
@@ -815,10 +835,10 @@ Although you solved a sub-question, you still need to find the answer to the ori
           await dedupQueries(
             thisStep.questionsToAnswer,
             allQuestions,
-            context.tokenTracker,
+            context.tokenTracker
           )
         ).unique_queries,
-        MAX_REFLECT_PER_STEP,
+        MAX_REFLECT_PER_STEP
       );
       const newGapQuestions = thisStep.questionsToAnswer;
       if (newGapQuestions.length > 0) {
@@ -838,7 +858,9 @@ You will now figure out the answers to these sub-questions and see if they can h
         });
       } else {
         diaryContext.push(`
-At step ${step}, you took **reflect** and think about the knowledge gaps. You tried to break down the question "${currentQuestion}" into gap-questions like this: ${newGapQuestions.join(", ")} 
+At step ${step}, you took **reflect** and think about the knowledge gaps. You tried to break down the question "${currentQuestion}" into gap-questions like this: ${newGapQuestions.join(
+          ", "
+        )} 
 But then you realized you have asked them before. You decided to to think out of the box or cut from a completely different angle. 
 `);
         updateContext({
@@ -854,7 +876,7 @@ But then you realized you have asked them before. You decided to to think out of
       thisStep.searchRequests = chooseK(
         (await dedupQueries(thisStep.searchRequests, [], context.tokenTracker))
           .unique_queries,
-        MAX_QUERIES_PER_STEP,
+        MAX_QUERIES_PER_STEP
       );
 
       // do first search
@@ -862,7 +884,7 @@ But then you realized you have asked them before. You decided to to think out of
         thisStep.searchRequests.map((q) => ({ q })),
         context,
         allURLs,
-        SchemaGen,
+        SchemaGen
       );
 
       allKeywords.push(...searchedQueries);
@@ -875,14 +897,14 @@ But then you realized you have asked them before. You decided to to think out of
         thisStep,
         soundBites,
         context,
-        SchemaGen,
+        SchemaGen
       );
       const qOnly = keywordsQueries.filter((q) => q.q).map((q) => q.q);
       // avoid exisitng searched queries
       const uniqQOnly = chooseK(
         (await dedupQueries(qOnly, allKeywords, context.tokenTracker))
           .unique_queries,
-        MAX_QUERIES_PER_STEP,
+        MAX_QUERIES_PER_STEP
       );
       keywordsQueries = keywordsQueries = uniqQOnly.map((q) => {
         const matches = keywordsQueries.filter((kq) => kq.q === q);
@@ -893,14 +915,13 @@ But then you realized you have asked them before. You decided to to think out of
       let anyResult = false;
 
       if (keywordsQueries.length > 0) {
-        const {searchedQueries, newKnowledge} =
-          await executeSearchQueries(
-            keywordsQueries,
-            context,
-            allURLs,
-            SchemaGen,
-            onlyHostnames
-          );
+        const { searchedQueries, newKnowledge } = await executeSearchQueries(
+          keywordsQueries,
+          context,
+          allURLs,
+          SchemaGen,
+          onlyHostnames
+        );
 
         if (searchedQueries.length > 0) {
           anyResult = true;
@@ -909,7 +930,9 @@ But then you realized you have asked them before. You decided to to think out of
 
           diaryContext.push(`
 At step ${step}, you took the **search** action and look for external information for the question: "${currentQuestion}".
-In particular, you tried to search for the following keywords: "${keywordsQueries.map((q) => q.q).join(", ")}".
+In particular, you tried to search for the following keywords: "${keywordsQueries
+            .map((q) => q.q)
+            .join(", ")}".
 You found quite some information and add them to your URL list and **visit** them later when needed. 
 `);
 
@@ -917,14 +940,16 @@ You found quite some information and add them to your URL list and **visit** the
             totalStep,
             question: currentQuestion,
             ...thisStep,
-            result: result
+            result: result,
           });
         }
       }
       if (!anyResult || !keywordsQueries?.length) {
         diaryContext.push(`
 At step ${step}, you took the **search** action and look for external information for the question: "${currentQuestion}".
-In particular, you tried to search for the following keywords:  "${keywordsQueries.map((q) => q.q).join(", ")}".
+In particular, you tried to search for the following keywords:  "${keywordsQueries
+          .map((q) => q.q)
+          .join(", ")}".
 But then you realized you have already searched for these keywords before, no new information is returned.
 You decided to think out of the box or cut from a completely different angle.
 `);
@@ -940,13 +965,18 @@ You decided to think out of the box or cut from a completely different angle.
     } else if (thisStep.action === "visit" && thisStep.URLTargets?.length) {
       // normalize URLs
       thisStep.URLTargets = thisStep.URLTargets.map((url) =>
-        normalizeUrl(url),
+        normalizeUrl(url)
       ).filter((url) => url && !visitedURLs.includes(url)) as string[];
 
-      thisStep.URLTargets = [...new Set([...thisStep.URLTargets, ...weightedURLs.map(r => r.url!)])].slice(0, MAX_URLS_PER_STEP);
+      thisStep.URLTargets = [
+        ...new Set([
+          ...thisStep.URLTargets,
+          ...weightedURLs.map((r) => r.url!),
+        ]),
+      ].slice(0, MAX_URLS_PER_STEP);
 
       const uniqueURLs = thisStep.URLTargets.filter((u) =>
-        u.startsWith("http"),
+        u.startsWith("http")
       );
 
       if (uniqueURLs.length > 0) {
@@ -958,7 +988,7 @@ You decided to think out of the box or cut from a completely different angle.
           visitedURLs,
           badURLs,
           SchemaGen,
-          currentQuestion,
+          currentQuestion
         );
 
         diaryContext.push(
@@ -966,7 +996,7 @@ You decided to think out of the box or cut from a completely different angle.
             ? `At step ${step}, you took the **visit** action and deep dive into the following URLs:
 ${urlResults.map((r) => r?.url).join("\n")}
 You found some useful information on the web and add them to your knowledge for future reference.`
-            : `At step ${step}, you took the **visit** action and try to visit some URLs but failed to read the content. You need to think out of the box or cut from a completely different angle.`,
+            : `At step ${step}, you took the **visit** action and try to visit some URLs but failed to read the content. You need to think out of the box or cut from a completely different angle.`
         );
 
         updateContext({
@@ -1000,7 +1030,7 @@ You decided to think out of the box or cut from a completely different angle.`);
       const sandbox = new CodeSandbox(
         { allContext, URLs: weightedURLs.slice(0, 20), allKnowledge },
         context,
-        SchemaGen,
+        SchemaGen
       );
       try {
         const result = await sandbox.solve(thisStep.codingIssue);
@@ -1048,7 +1078,7 @@ But unfortunately, you failed to solve the issue. You need to think out of the b
         weightedURLs,
         msgWithKnowledge,
       },
-      totalStep,
+      totalStep
     );
     await sleep(STEP_SLEEP);
   }
@@ -1064,7 +1094,7 @@ But unfortunately, you failed to solve the issue. You need to think out of the b
       weightedURLs,
       msgWithKnowledge,
     },
-    totalStep,
+    totalStep
   );
 
   if (!(thisStep as AnswerAction).isFinal) {
@@ -1083,7 +1113,7 @@ But unfortunately, you failed to solve the issue. You need to think out of the b
       false,
       allKnowledge,
       weightedURLs,
-      true,
+      true
     );
 
     schema = SchemaGen.getAgentSchema(
@@ -1092,13 +1122,13 @@ But unfortunately, you failed to solve the issue. You need to think out of the b
       true,
       false,
       false,
-      question,
+      question
     );
     msgWithKnowledge = composeMsgs(
       messages,
       allKnowledge,
       question,
-      finalAnswerPIP,
+      finalAnswerPIP
     );
     const result = await generator.generateObject({
       model: "agentBeastMode",
@@ -1126,16 +1156,16 @@ But unfortunately, you failed to solve the issue. You need to think out of the b
               buildMdFromAnswer(thisStep as AnswerAction),
               allKnowledge,
               context,
-              SchemaGen,
-            ),
-          ),
+              SchemaGen
+            )
+          )
         ),
-        allURLs,
-      ),
+        allURLs
+      )
     );
   } else {
     (thisStep as AnswerAction).mdAnswer = convertHtmlTablesToMd(
-      fixCodeBlockIndentation(buildMdFromAnswer(thisStep as AnswerAction)),
+      fixCodeBlockIndentation(buildMdFromAnswer(thisStep as AnswerAction))
     );
   }
 
@@ -1152,7 +1182,7 @@ But unfortunately, you failed to solve the issue. You need to think out of the b
       weightedURLs,
       msgWithKnowledge,
     },
-    totalStep,
+    totalStep
   );
 
   const tokenUsage = context.tokenTracker.getTotalUsage();
@@ -1163,6 +1193,7 @@ But unfortunately, you failed to solve the issue. You need to think out of the b
     // HACK: dont need the other urls for now
     allURLs: [],
     visitedURLs: [],
+    // @ts-ignore
     tokenUsage: {
       total: tokenUsage.totalTokens,
       prompt: tokenUsage.promptTokens,
@@ -1182,7 +1213,7 @@ async function storeContext(
     weightedURLs: BoostedSearchSnippet[];
     msgWithKnowledge: CoreMessage[];
   },
-  step: number,
+  step: number
 ) {
   const {
     allContext,
@@ -1216,7 +1247,7 @@ ${prompt}
 
 JSONSchema:
 ${JSON.stringify(zodToJsonSchema(schema), null, 2)}
-`,
+`
     );
     await fs.writeFile("context.json", JSON.stringify(allContext, null, 2));
     await fs.writeFile("queries.json", JSON.stringify(allKeywords, null, 2));
@@ -1225,7 +1256,7 @@ ${JSON.stringify(zodToJsonSchema(schema), null, 2)}
     await fs.writeFile("urls.json", JSON.stringify(weightedURLs, null, 2));
     await fs.writeFile(
       "messages.json",
-      JSON.stringify(msgWithKnowledge, null, 2),
+      JSON.stringify(msgWithKnowledge, null, 2)
     );
   } catch (error) {
     console.error("Context storage failed:", error);

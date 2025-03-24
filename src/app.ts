@@ -27,7 +27,7 @@ app.use(cors());
 app.use(
   express.json({
     limit: "10mb",
-  }),
+  })
 );
 
 // Add health check endpoint for Docker container verification
@@ -37,7 +37,7 @@ app.get("/health", (req, res) => {
 
 async function* streamTextNaturally(
   text: string,
-  streamingState: StreamingState,
+  streamingState: StreamingState
 ) {
   // Split text into chunks that preserve CJK characters, URLs, and regular words
   const chunks = splitTextIntoChunks(text);
@@ -189,7 +189,7 @@ async function emitRemainingContent(
   requestId: string,
   created: number,
   model: string,
-  content: string,
+  content: string
 ) {
   if (!content) return;
 
@@ -222,12 +222,12 @@ interface StreamingState {
 
 export function getTokenBudgetAndMaxAttempts(
   reasoningEffort: "low" | "medium" | "high" | null = "medium",
-  maxCompletionTokens: number | null = null,
+  maxCompletionTokens: number | null = null
 ): { tokenBudget: number; maxBadAttempts: number } {
   if (maxCompletionTokens !== null) {
     return {
       tokenBudget: maxCompletionTokens,
-      maxBadAttempts: 1 // Default to medium setting for max attempts
+      maxBadAttempts: 1, // Default to medium setting for max attempts
     };
   }
 
@@ -238,7 +238,7 @@ export function getTokenBudgetAndMaxAttempts(
       return { tokenBudget: 1000000, maxBadAttempts: 2 };
     case "medium":
     default:
-      return {tokenBudget: 500000, maxBadAttempts: 1};
+      return { tokenBudget: 500000, maxBadAttempts: 1 };
   }
 }
 
@@ -247,7 +247,7 @@ async function completeCurrentStreaming(
   res: Response,
   requestId: string,
   created: number,
-  model: string,
+  model: string
 ) {
   if (streamingState.currentlyStreaming && streamingState.remainingContent) {
     // Force completion of current streaming
@@ -256,7 +256,7 @@ async function completeCurrentStreaming(
       requestId,
       created,
       model,
-      streamingState.remainingContent,
+      streamingState.remainingContent
     );
     // Reset streaming state
     streamingState.currentlyStreaming = false;
@@ -328,7 +328,7 @@ async function processQueue(
   res: Response,
   requestId: string,
   created: number,
-  model: string,
+  model: string
 ) {
   if (streamingState.processingQueue) return;
 
@@ -353,7 +353,7 @@ async function processQueue(
 
       for await (const word of streamTextNaturally(
         current.content,
-        streamingState,
+        streamingState
       )) {
         const chunk: ChatCompletionChunk = {
           id: requestId,
@@ -445,7 +445,7 @@ app.post("/v1/chat/completions", (async (req: Request, res: Response) => {
         });
         //Filter out any content objects in the array that now have null/undefined/empty text.
         message.content = message.content.filter(
-          (content: any) => !(content.type === "text" && content.text === ""),
+          (content: any) => !(content.type === "text" && content.text === "")
         );
 
         //Filter out the message if the array is now empty
@@ -476,7 +476,7 @@ app.post("/v1/chat/completions", (async (req: Request, res: Response) => {
 
   let { tokenBudget, maxBadAttempts } = getTokenBudgetAndMaxAttempts(
     body.reasoning_effort,
-    body.max_completion_tokens,
+    body.max_completion_tokens
   );
 
   if (body.budget_tokens) {
@@ -603,8 +603,8 @@ app.post("/v1/chat/completions", (async (req: Request, res: Response) => {
       body.no_direct_answer,
       body.boost_hostnames,
       body.bad_hostnames,
-      body.only_hostnames,
-      )
+      body.only_hostnames
+    );
     let finalAnswer = (finalStep as AnswerAction).mdAnswer;
 
     const annotations = (finalStep as AnswerAction).references?.map((ref) => ({
@@ -644,7 +644,7 @@ app.post("/v1/chat/completions", (async (req: Request, res: Response) => {
         res,
         requestId,
         created,
-        body.model,
+        body.model
       );
       // Send closing think tag
       const closeThinkChunk: ChatCompletionChunk = {
