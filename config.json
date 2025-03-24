@@ -1,18 +1,17 @@
 {
   "env": {
     "https_proxy": "",
-    "OPENAI_BASE_URL": "",
-    "GEMINI_API_KEY": "",
-    "OPENAI_API_KEY": "",
+    "OPENAI_BASE_URL": "https://openrouter.ai/api/v1",
+    "GEMINI_API_KEY": "AIzaSyAr71blNhanhWAAEqG72UEyJMA35l-lnGA",
+    "OPENAI_API_KEY": "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",
     "JINA_API_KEY": "jina_f71f1b30c087401c81a76fe09f5c270bshV358Y2Gdbp1LtbK74k60XiGhzr",
     "BRAVE_API_KEY": "",
     "SERPER_API_KEY": "",
-    "OPENROUTER_API_KEY": "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",
     "DEFAULT_MODEL_NAME": ""
   },
   "defaults": {
     "search_provider": "jina",
-    "llm_provider": "openrouter",
+    "llm_provider": "openai",
     "step_sleep": 100
   },
   "providers": {

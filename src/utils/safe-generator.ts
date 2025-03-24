@@ -259,4 +259,3 @@ export class ObjectGeneratorSafe {
     throw error;
   }
 }
-

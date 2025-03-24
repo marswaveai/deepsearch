@@ -11,7 +11,7 @@ export const getAgentOptions = () => ({
   },
   messages: [],
   maxReturnedUrls: 75, // HACK: decrease from 100 to 75
-  noDirectAnswer: undefined,
+  noDirectAnswer: false,
   boostHostnames: [],
   badHostnames: [],
 });

@@ -435,7 +435,7 @@ export async function getResponse(
   visitedURLs: string[];
   readURLs: string[];
   allURLs: string[];
-  tokens: {
+  tokenUsage: {
     total: number;
     completion: number;
     prompt: number;
@@ -1167,7 +1167,7 @@ But unfortunately, you failed to solve the issue. You need to think out of the b
     // HACK: dont need the other urls for now
     allURLs: [],
     visitedURLs: [],
-    tokens: {
+    tokenUsage: {
       total: tokenUsage.totalTokens,
       prompt: tokenUsage.promptTokens,
       completion: tokenUsage.completionTokens,
