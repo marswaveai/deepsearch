@@ -1,5 +1,11 @@
 # @marswaveai/deepsearch
 
+## 0.1.3
+
+### Patch Changes
+
+- 162a576: Move config to ts
+
 ## 0.1.2
 
 ### Patch Changes
