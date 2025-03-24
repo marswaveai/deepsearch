@@ -1,10 +1,8 @@
 import dotenv from "dotenv";
 import { ProxyAgent, setGlobalDispatcher } from "undici";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI, OpenAIProviderSettings } from "@ai-sdk/openai";
-import configJson from "../config.json";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { configJson } from "./config-json";
 
 dotenv.config();
 
