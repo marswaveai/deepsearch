@@ -1,5 +1,11 @@
 # @marswaveai/deepsearch
 
+## 0.1.4
+
+### Patch Changes
+
+- Add getResponse return type
+
 ## 0.1.3
 
 ### Patch Changes

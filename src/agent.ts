@@ -455,6 +455,11 @@ export async function getResponse(
   visitedURLs: string[];
   readURLs: string[];
   allURLs: string[];
+  tokenUsage: {
+    total: number;
+    completion: number;
+    prompt: number;
+  };
 }> {
   let step = 0;
   let totalStep = 0;
@@ -498,7 +503,7 @@ export async function getResponse(
   const allKeywords: string[] = [];
   const allKnowledge: KnowledgeItem[] = []; // knowledge are intermedidate questions that are answered
 
-  let diaryContext = [];
+  let diaryContext: string[] = [];
   let weightedURLs: BoostedSearchSnippet[] = [];
   let allowAnswer = true;
   let allowSearch = true;
@@ -1193,7 +1198,6 @@ But unfortunately, you failed to solve the issue. You need to think out of the b
     // HACK: dont need the other urls for now
     allURLs: [],
     visitedURLs: [],
-    // @ts-ignore
     tokenUsage: {
       total: tokenUsage.totalTokens,
       prompt: tokenUsage.promptTokens,
