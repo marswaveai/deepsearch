@@ -1,6 +1,6 @@
 {
-  "name": "@marswaveai/deepresearch",
-  "version": "1.0.0",
+  "name": "@marswaveai/deepsearch",
+  "version": "0.1.0",
   "main": "./dist/app.js",
   "types": "./dist/app.d.ts",
   "exports": {
@@ -59,6 +59,7 @@
     "zod-to-json-schema": "^3.24.1"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.28.1",
     "@types/commander": "^2.12.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
