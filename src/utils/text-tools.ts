@@ -162,16 +162,22 @@ ${formatReferences(references)}
  * It extracts existing footnote definitions and uses them as references
  */
 export function repairMarkdownFootnotesOuter(markdownString: string): string {
-  // Remove outer code fence if it exists
   // First trim the string to handle any extra whitespace
   markdownString = markdownString.trim();
 
-// Check if the string starts with ```markdown or ```html and ends with ```
-  const codeBlockRegex = /^```(markdown|html)\n([\s\S]*)\n```$/;
-  const codeBlockMatch = markdownString.match(codeBlockRegex);
-  if (codeBlockMatch) {
-    markdownString = codeBlockMatch[2];
+  // Unwrap ALL code fences throughout the document
+  // This matches any content between ```markdown or ```html and closing ```
+  const codeBlockRegex = /```(markdown|html)\n([\s\S]*?)\n```/g;
+  let match;
+  let processedString = markdownString;
+
+  while ((match = codeBlockRegex.exec(markdownString)) !== null) {
+    const entireMatch = match[0];
+    const codeContent = match[2];
+    processedString = processedString.replace(entireMatch, codeContent);
   }
+
+  markdownString = processedString;
 
   // Extract existing footnote definitions
   const footnoteDefRegex = /\[\^(\d+)]:\s*(.*?)(?=\n\[\^|$)/gs;
@@ -192,10 +198,10 @@ export function repairMarkdownFootnotesOuter(markdownString: string): string {
   }
 
   // Extract all footnote definitions
-  let match;
-  while ((match = footnoteDefRegex.exec(footnotesPart)) !== null) {
+  let footnoteMatch;
+  while ((footnoteMatch = footnoteDefRegex.exec(footnotesPart)) !== null) {
     // The footnote content
-    let content = match[2].trim();
+    let content = footnoteMatch[2].trim();
 
     // Extract URL and title if present
     // Looking for [domain.com](url) pattern at the end of the content
@@ -471,21 +477,6 @@ export function convertHtmlTablesToMd(mdString: string): string {
         if (convertedTable) {
           result = result.replace(htmlTable, convertedTable);
         }
-      }
-    }
-
-    // Then check for markdown tables inside code fences (including with the "html" language specifier)
-    const codeFenceRegex = /```(?:html)?\s*\n(\s*\|\s*[^|]+\s*\|[\s\S]*?)\n\s*```/g;
-    let codeFenceMatch;
-
-    while ((codeFenceMatch = codeFenceRegex.exec(mdString)) !== null) {
-      const entireMatch = codeFenceMatch[0];
-      const tableContent = codeFenceMatch[1];
-
-      // Check if this is actually a markdown table by looking for the separator row
-      if (tableContent.includes('\n| ---') || tableContent.includes('\n|---')) {
-        // It's already a markdown table, so just remove the code fence
-        result = result.replace(entireMatch, tableContent);
       }
     }
 

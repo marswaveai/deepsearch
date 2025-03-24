@@ -186,15 +186,20 @@ export type ErrorAnalysisResponse = {
   improvement: string;
 };
 
-export type SearchResult =
-  | SearchSnippet
-  | { title: string; link: string; snippet: string; weight?: number };
 
-export type SearchSnippet = {
+export type UnNormalizedSearchSnippet = {
   title: string;
+  url?: string;
+  description?: string;
+  link?: string;
+  snippet?: string;
+  weight?: number,
+  date?: string
+};
+
+export type SearchSnippet = UnNormalizedSearchSnippet& {
   url: string;
   description: string;
-  weight?: number;
 };
 
 export type BoostedSearchSnippet = SearchSnippet & {
@@ -236,6 +241,7 @@ export interface ChatCompletionRequest {
 
   boost_hostnames?: string[];
   bad_hostnames?: string[];
+  only_hostnames?: string[];
 }
 
 export interface URLAnnotation {

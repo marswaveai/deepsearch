@@ -1,18 +1,11 @@
-import {
-  BoostedSearchSnippet,
-  KnowledgeItem,
-  SearchResult,
-  SearchSnippet,
-  TrackerContext,
-  VisitAction,
-} from "../types";
-import { getI18nText, smartMergeStrings } from "./text-tools";
-import { rerankDocuments } from "../tools/jina-rerank";
-import { readUrl } from "../tools/read";
-import { Schemas } from "./schemas";
-import { cherryPick } from "../tools/jina-latechunk";
-import { formatDateBasedOnType } from "./date-tools";
-import { classifyText } from "../tools/jina-classify-spam";
+import {BoostedSearchSnippet, KnowledgeItem, SearchSnippet, TrackerContext, VisitAction} from "../types";
+import {getI18nText, smartMergeStrings} from "./text-tools";
+import {rerankDocuments} from "../tools/jina-rerank";
+import {readUrl} from "../tools/read";
+import {Schemas} from "./schemas";
+import {cherryPick} from "../tools/jina-latechunk";
+import {formatDateBasedOnType} from "./date-tools";
+import {classifyText} from "../tools/jina-classify-spam";
 
 export function normalizeUrl(
   urlString: string,
@@ -193,17 +186,9 @@ export function normalizeUrl(
   }
 }
 
-export function filterURLs(
-  allURLs: Record<string, SearchSnippet>,
-  visitedURLs: string[],
-  badHostnames: string[],
-): SearchSnippet[] {
+export function filterURLs(allURLs: Record<string, SearchSnippet>, visitedURLs: string[], badHostnames: string[], onlyHostnames: string[]): SearchSnippet[] {
   return Object.entries(allURLs)
-    .filter(
-      ([url]) =>
-        !visitedURLs.includes(url) &&
-        !badHostnames.includes(extractUrlParts(url).hostname),
-    )
+    .filter(([url,]) => !visitedURLs.includes(url) && !badHostnames.includes(extractUrlParts(url).hostname) && (onlyHostnames.length === 0 || onlyHostnames.includes(extractUrlParts(url).hostname)))
     .map(([, result]) => result);
 }
 
@@ -222,7 +207,7 @@ const extractUrlParts = (urlStr: string) => {
 };
 
 // Function to count occurrences of hostnames and paths
-export const countUrlParts = (urlItems: SearchResult[]) => {
+export const countUrlParts = (urlItems: SearchSnippet[]) => {
   const hostnameCount: Record<string, number> = {};
   const pathPrefixCount: Record<string, number> = {};
   let totalUrls = 0;

@@ -14,14 +14,9 @@ import {
   StepAction,
   AnswerAction,
   KnowledgeItem,
-  SearchResult,
   EvaluationType,
   BoostedSearchSnippet,
-  SearchSnippet,
-  EvaluationResponse,
-  Reference,
-  SERPQuery,
-  RepeatEvaluationType,
+  SearchSnippet, EvaluationResponse, Reference, SERPQuery, RepeatEvaluationType, UnNormalizedSearchSnippet
 } from "./types";
 import { TrackerContext } from "./types";
 import { search } from "./tools/jina-search";
@@ -301,7 +296,7 @@ async function updateReferences(
           .replace(/\s+/g, " "),
         title: allURLs[normalizedUrl]?.title || "",
         url: normalizedUrl,
-        dateTime: ref?.dateTime || "",
+        dateTime: ref?.dateTime || allURLs[normalizedUrl]?.date || '',
       };
     })
     .filter(Boolean) as Reference[]; // Add type assertion here
@@ -320,7 +315,8 @@ async function executeSearchQueries(
   keywordsQueries: any[],
   context: TrackerContext,
   allURLs: Record<string, SearchSnippet>,
-  SchemaGen: any,
+  SchemaGen: Schemas,
+  onlyHostnames?: string[]
 ): Promise<{
   newKnowledge: KnowledgeItem[];
   searchedQueries: string[];
@@ -333,8 +329,11 @@ async function executeSearchQueries(
   });
   let utilityScore = 0;
   for (const query of keywordsQueries) {
-    let results: SearchResult[] = [];
+    let results: UnNormalizedSearchSnippet[] = [];
     const oldQuery = query.q;
+    if (onlyHostnames && onlyHostnames.length > 0) {
+      query.q = `${query.q} site:${onlyHostnames.join(' OR site:')}`;
+    }
 
     try {
       console.log("Search query:", query);
@@ -373,16 +372,17 @@ async function executeSearchQueries(
     }
 
     const minResults: SearchSnippet[] = results
-      .map((r) => {
-        const url = normalizeUrl("url" in r ? r.url : r.link);
+      .map(r => {
+        const url = normalizeUrl('url' in r ? r.url! : r.link!);
         if (!url) return null; // Skip invalid URLs
 
         return {
           title: r.title,
           url,
-          description: "description" in r ? r.description : r.snippet,
+          description: 'description' in r ? r.description : r.snippet,
           weight: 1,
-        };
+          date: r.date,
+        } as SearchSnippet;
       })
       .filter(Boolean) as SearchSnippet[]; // Filter out null entries and assert type
 
@@ -399,12 +399,16 @@ async function executeSearchQueries(
       updated: query.tbs ? formatDateRange(query) : undefined,
     });
   }
-
-  console.log(`Utility/Queries: ${utilityScore}/${searchedQueries.length}`);
-  if (searchedQueries.length > MAX_QUERIES_PER_STEP) {
-    console.log(
-      `So many queries??? ${searchedQueries.map((q) => `"${q}"`).join(", ")}`,
-    );
+  if (searchedQueries.length === 0) {
+    if (onlyHostnames && onlyHostnames.length > 0) {
+      console.log(`No results found for queries: ${uniqQOnly.join(', ')} on hostnames: ${onlyHostnames.join(', ')}`);
+      context.actionTracker.trackThink('hostnames_no_results', SchemaGen.languageCode, {hostnames: onlyHostnames.join(', ')});
+    }
+  } else {
+    console.log(`Utility/Queries: ${utilityScore}/${searchedQueries.length}`);
+    if (searchedQueries.length > MAX_QUERIES_PER_STEP) {
+      console.log(`So many queries??? ${searchedQueries.map(q => `"${q}"`).join(', ')}`)
+    }
   }
   return {
     newKnowledge,
@@ -419,28 +423,18 @@ function includesEval(
   return allChecks.some((c) => c.type === evalType);
 }
 
-export async function getResponse(
-  question?: string,
-  tokenBudget: number = 1_000_000,
-  maxBadAttempts: number = 2,
-  existingContext?: Partial<TrackerContext>,
-  messages?: Array<CoreMessage>,
-  numReturnedURLs: number = 100,
-  noDirectAnswer: boolean = false,
-  boostHostnames: string[] = [],
-  badHostnames: string[] = [],
-): Promise<{
-  result: StepAction;
-  context: TrackerContext;
-  visitedURLs: string[];
-  readURLs: string[];
-  allURLs: string[];
-  tokenUsage: {
-    total: number;
-    completion: number;
-    prompt: number;
-  };
-}> {
+export async function getResponse(question?: string,
+                                  tokenBudget: number = 1_000_000,
+                                  maxBadAttempts: number = 2,
+                                  existingContext?: Partial<TrackerContext>,
+                                  messages?: Array<CoreMessage>,
+                                  numReturnedURLs: number = 100,
+                                  noDirectAnswer: boolean = false,
+                                  boostHostnames: string[] = [],
+                                  badHostnames: string[] = [],
+                                  onlyHostnames: string[] = []
+): Promise<{ result: StepAction; context: TrackerContext; visitedURLs: string[], readURLs: string[], allURLs: string[] }> {
+
   let step = 0;
   let totalStep = 0;
 
@@ -553,12 +547,11 @@ export async function getResponse(
       allowReflect = false;
     }
 
-    // update all urls with buildURLMap
-    // allowRead = allowRead && (Object.keys(allURLs).length > 0);
+
     if (allURLs && Object.keys(allURLs).length > 0) {
       // rerank urls
       weightedURLs = rankURLs(
-        filterURLs(allURLs, visitedURLs, badHostnames),
+        filterURLs(allURLs, visitedURLs, badHostnames, onlyHostnames),
         {
           question: currentQuestion,
           boostHostnames,
@@ -569,6 +562,7 @@ export async function getResponse(
       weightedURLs = keepKPerHostname(weightedURLs, 2);
       console.log("Weighted URLs:", weightedURLs.length);
     }
+    allowRead = allowRead && (weightedURLs.length > 0);
 
     allowSearch = allowSearch && weightedURLs.length < 200; // disable search when too many urls already
 
@@ -899,29 +893,33 @@ But then you realized you have asked them before. You decided to to think out of
       let anyResult = false;
 
       if (keywordsQueries.length > 0) {
-        const { searchedQueries, newKnowledge } = await executeSearchQueries(
-          keywordsQueries,
-          context,
-          allURLs,
-          SchemaGen,
-        );
+        const {searchedQueries, newKnowledge} =
+          await executeSearchQueries(
+            keywordsQueries,
+            context,
+            allURLs,
+            SchemaGen,
+            onlyHostnames
+          );
 
-        allKeywords.push(...searchedQueries);
-        allKnowledge.push(...newKnowledge);
+        if (searchedQueries.length > 0) {
+          anyResult = true;
+          allKeywords.push(...searchedQueries);
+          allKnowledge.push(...newKnowledge);
 
-        diaryContext.push(`
+          diaryContext.push(`
 At step ${step}, you took the **search** action and look for external information for the question: "${currentQuestion}".
 In particular, you tried to search for the following keywords: "${keywordsQueries.map((q) => q.q).join(", ")}".
 You found quite some information and add them to your URL list and **visit** them later when needed. 
 `);
 
-        updateContext({
-          totalStep,
-          question: currentQuestion,
-          ...thisStep,
-          result: result,
-        });
-        anyResult = true;
+          updateContext({
+            totalStep,
+            question: currentQuestion,
+            ...thisStep,
+            result: result
+          });
+        }
       }
       if (!anyResult || !keywordsQueries?.length) {
         diaryContext.push(`
@@ -945,9 +943,7 @@ You decided to think out of the box or cut from a completely different angle.
         normalizeUrl(url),
       ).filter((url) => url && !visitedURLs.includes(url)) as string[];
 
-      thisStep.URLTargets = [
-        ...new Set([...thisStep.URLTargets, ...weightedURLs.map((r) => r.url)]),
-      ].slice(0, MAX_URLS_PER_STEP);
+      thisStep.URLTargets = [...new Set([...thisStep.URLTargets, ...weightedURLs.map(r => r.url!)])].slice(0, MAX_URLS_PER_STEP);
 
       const uniqueURLs = thisStep.URLTargets.filter((u) =>
         u.startsWith("http"),
