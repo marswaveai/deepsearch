@@ -37,3 +37,14 @@ In `src/utils/schema.ts`:
    steps the agent can perform before taking action (such as searching again or
    reading a URL). This encourages the agent to balance thinking with gathering
    new information.
+
+## Releasing a new version
+
+```bash
+pnpm changeset
+pnpm changeset version
+
+# commit to git
+
+pnpm release
+```

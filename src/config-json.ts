@@ -4,7 +4,7 @@ export const configJson = {
     OPENAI_BASE_URL: "https://openrouter.ai/api/v1",
     GEMINI_API_KEY: "AIzaSyAr71blNhanhWAAEqG72UEyJMA35l-lnGA",
     OPENAI_API_KEY:
-      "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",
+      "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",
     JINA_API_KEY:
       "jina_f71f1b30c087401c81a76fe09f5c270bshV358Y2Gdbp1LtbK74k60XiGhzr",
     BRAVE_API_KEY: "",

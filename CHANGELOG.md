@@ -1,5 +1,17 @@
 # @marswaveai/deepsearch
 
+## 0.1.6
+
+### Patch Changes
+
+- Add docs
+
+## 0.1.5
+
+### Patch Changes
+
+- Add return type
+
 ## 0.1.4
 
 ### Patch Changes
