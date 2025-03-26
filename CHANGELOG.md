@@ -1,5 +1,11 @@
 # @marswaveai/deepsearch
 
+## 0.1.9
+
+### Patch Changes
+
+- Change api key
+
 ## 0.1.8
 
 ### Patch Changes

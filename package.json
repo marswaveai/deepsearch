@@ -1,6 +1,6 @@
 {
   "name": "@marswaveai/deepsearch",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "main": "./dist/app.js",
   "types": "./dist/app.d.ts",
   "exports": {

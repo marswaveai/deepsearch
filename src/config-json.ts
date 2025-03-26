@@ -5,7 +5,7 @@ export const configJson = {
     GEMINI_API_KEY: "AIzaSyAr71blNhanhWAAEqG72UEyJMA35l-lnGA",
     OPENAI_API_KEY: "",
     OPENROUTER_API_KEY:
-      "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",
+      "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",
     JINA_API_KEY:
       "jina_f71f1b30c087401c81a76fe09f5c270bshV358Y2Gdbp1LtbK74k60XiGhzr",
     BRAVE_API_KEY: "",
