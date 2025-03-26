@@ -3,8 +3,9 @@ export const configJson = {
     https_proxy: "",
     OPENAI_BASE_URL: "https://openrouter.ai/api/v1",
     GEMINI_API_KEY: "AIzaSyAr71blNhanhWAAEqG72UEyJMA35l-lnGA",
-    OPENAI_API_KEY:
-      "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",
+    OPENAI_API_KEY: "",
+    OPENROUTER_API_KEY:
+      "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",
     JINA_API_KEY:
       "jina_f71f1b30c087401c81a76fe09f5c270bshV358Y2Gdbp1LtbK74k60XiGhzr",
     BRAVE_API_KEY: "",
@@ -13,8 +14,8 @@ export const configJson = {
   },
   defaults: {
     search_provider: "jina",
-    llm_provider: "openai",
-    step_sleep: 100,
+    llm_provider: "openrouter",
+    step_sleep: 150,
   },
   providers: {
     gemini: {

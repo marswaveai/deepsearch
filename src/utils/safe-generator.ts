@@ -36,7 +36,7 @@ export class ObjectGeneratorSafe {
    * This makes the schema simpler for fallback parsing scenarios
    */
   private createDistilledSchema<T>(
-    schema: z.ZodType<T> | Schema<T>,
+    schema: z.ZodType<T> | Schema<T>
   ): z.ZodType<T> | Schema<T> {
     // For zod schemas
     if (schema instanceof z.ZodType) {
@@ -72,7 +72,7 @@ export class ObjectGeneratorSafe {
 
     if (zodSchema instanceof z.ZodArray) {
       return z.array(
-        this.stripZodDescriptions(zodSchema._def.type),
+        this.stripZodDescriptions(zodSchema._def.type)
       ) as unknown as z.ZodType<T>;
     }
 
@@ -137,7 +137,7 @@ export class ObjectGeneratorSafe {
   }
 
   async generateObject<T>(
-    options: GenerateOptions<T>,
+    options: GenerateOptions<T>
   ): Promise<GenerateObjectResult<T>> {
     const { model, schema, prompt, system, messages, numRetries = 0 } = options;
 
@@ -168,7 +168,9 @@ export class ObjectGeneratorSafe {
       } catch (parseError) {
         if (numRetries > 0) {
           console.error(
-            `${model} failed on object generation -> manual parsing failed -> retry with ${numRetries - 1} retries remaining`,
+            `${model} failed on object generation -> manual parsing failed -> retry with ${
+              numRetries - 1
+            } retries remaining`
           );
           return this.generateObject({
             model,
@@ -181,7 +183,7 @@ export class ObjectGeneratorSafe {
         } else {
           // Second fallback: Try with fallback model if provided
           console.error(
-            `${model} failed on object generation -> manual parsing failed -> trying fallback with distilled schema`,
+            `${model} failed on object generation -> manual parsing failed -> trying fallback with distilled schema`
           );
           try {
             let failedOutput = "";
@@ -191,7 +193,7 @@ export class ObjectGeneratorSafe {
               // find last `"url":` appear in the string, which is the source of the problem
               failedOutput = failedOutput.slice(
                 0,
-                Math.min(failedOutput.lastIndexOf('"url":'), 8000),
+                Math.min(failedOutput.lastIndexOf('"url":'), 8000)
               );
             }
 
@@ -212,8 +214,9 @@ export class ObjectGeneratorSafe {
           } catch (fallbackError) {
             // If fallback model also fails, try parsing its error response
             try {
-              const lastChanceResult =
-                await this.handleGenerateObjectError<T>(fallbackError);
+              const lastChanceResult = await this.handleGenerateObjectError<T>(
+                fallbackError
+              );
               this.tokenTracker.trackUsage("fallback", lastChanceResult.usage);
               return lastChanceResult;
             } catch (finalError) {
@@ -227,11 +230,11 @@ export class ObjectGeneratorSafe {
   }
 
   private async handleGenerateObjectError<T>(
-    error: unknown,
+    error: unknown
   ): Promise<GenerateObjectResult<T>> {
     if (NoObjectGeneratedError.isInstance(error)) {
       console.error(
-        "Object not generated according to schema, fallback to manual parsing",
+        "Object not generated according to schema, fallback to manual parsing"
       );
       try {
         // First try standard JSON parsing

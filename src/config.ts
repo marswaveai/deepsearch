@@ -3,11 +3,11 @@ import { ProxyAgent, setGlobalDispatcher } from "undici";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { configJson } from "./config-json";
+import { createOpenAI, OpenAIProviderSettings } from "@ai-sdk/openai";
 
 dotenv.config();
 
-// Types
-export type LLMProvider = "openai" | "gemini" | "vertex";
+export type LLMProvider = "openai" | "gemini" | "vertex" | "openrouter";
 export type ToolName = keyof typeof configJson.models.gemini.tools;
 
 // Type definitions for our config structure
@@ -38,6 +38,7 @@ if (env.https_proxy) {
 }
 
 // Export environment variables
+export const OPENROUTER_API_KEY = env.OPENROUTER_API_KEY;
 export const OPENAI_BASE_URL = env.OPENAI_BASE_URL;
 export const GEMINI_API_KEY = env.GEMINI_API_KEY;
 export const OPENAI_API_KEY = env.OPENAI_API_KEY;
@@ -47,7 +48,6 @@ export const SERPER_API_KEY = env.SERPER_API_KEY;
 export const SEARCH_PROVIDER = configJson.defaults.search_provider;
 export const STEP_SLEEP = configJson.defaults.step_sleep;
 
-// Determine LLM provider
 export const LLM_PROVIDER: LLMProvider = (() => {
   const provider = process.env.LLM_PROVIDER || configJson.defaults.llm_provider;
   if (!isValidProvider(provider)) {
@@ -58,7 +58,10 @@ export const LLM_PROVIDER: LLMProvider = (() => {
 
 function isValidProvider(provider: string): provider is LLMProvider {
   return (
-    provider === "openai" || provider === "gemini" || provider === "vertex"
+    provider === "openai" ||
+    provider === "gemini" ||
+    provider === "vertex" ||
+    provider === "openrouter"
   );
 }
 
@@ -76,7 +79,11 @@ interface ToolOverrides {
 // Get tool configuration
 export function getToolConfig(toolName: ToolName): ToolConfig {
   const providerConfig =
-    configJson.models[LLM_PROVIDER === "vertex" ? "gemini" : LLM_PROVIDER];
+    configJson.models[
+      LLM_PROVIDER === "vertex" || LLM_PROVIDER === "openrouter"
+        ? "gemini"
+        : LLM_PROVIDER
+    ];
   const defaultConfig = providerConfig.default;
   const toolOverrides = providerConfig.tools[toolName] as ToolOverrides;
 
@@ -96,17 +103,38 @@ export function getModel(toolName: ToolName) {
   const config = getToolConfig(toolName);
   const providerConfig = (
     configJson.providers as Record<string, ProviderConfig | undefined>
-  )[LLM_PROVIDER];
+  )[LLM_PROVIDER === "openrouter" ? "gemini" : LLM_PROVIDER];
+
+  if (LLM_PROVIDER === "openrouter") {
+    const { model, ...modelOpts } = config;
+    if (!OPENROUTER_API_KEY) {
+      throw new Error("OPENAI_API_KEY not found");
+    }
+    return createOpenRouter({
+      apiKey: OPENROUTER_API_KEY,
+    }).chat("google/gemini-2.0-flash-001", {
+      extraBody: {
+        useSearchGrounding: toolName === "searchGrounding",
+        ...modelOpts,
+      },
+    });
+  }
 
   if (LLM_PROVIDER === "openai") {
     if (!OPENAI_API_KEY) {
       throw new Error("OPENAI_API_KEY not found");
     }
-    return createOpenRouter({
+
+    const opt: OpenAIProviderSettings = {
       apiKey: OPENAI_API_KEY,
-    }).chat("google/gemini-2.0-flash-001", {
-      extraBody: { useSearchGrounding: toolName === "searchGrounding" },
-    });
+      compatibility: providerConfig?.clientConfig?.compatibility,
+    };
+
+    if (OPENAI_BASE_URL) {
+      opt.baseURL = OPENAI_BASE_URL;
+    }
+
+    return createOpenAI(opt)(config.model);
   }
 
   if (LLM_PROVIDER === "vertex") {
