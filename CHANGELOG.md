@@ -1,5 +1,17 @@
 # @marswaveai/deepsearch
 
+## 0.1.11
+
+### Patch Changes
+
+- Add config
+
+## 0.1.10
+
+### Patch Changes
+
+- Update prompt
+
 ## 0.1.9
 
 ### Patch Changes

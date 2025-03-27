@@ -4,7 +4,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { configJson } from "./config-json";
 import { createOpenAI, OpenAIProviderSettings } from "@ai-sdk/openai";
-
+import config from "config";
 dotenv.config();
 
 export type LLMProvider = "openai" | "gemini" | "vertex" | "openrouter";
@@ -18,11 +18,15 @@ interface ProviderConfig {
   clientConfig?: Record<string, any>;
 }
 
-// Environment setup
+console.log("ocnfig json", configJson.env);
+// Environment setup, order: env > ./config > config-json.ts
 const env: EnvConfig = { ...configJson.env };
+
 (Object.keys(env) as (keyof EnvConfig)[]).forEach((key) => {
   if (process.env[key]) {
-    env[key] = process.env[key] || env[key];
+    env[key] = process.env[key];
+  } else if (config.has(key)) {
+    env[key] = config.get(key);
   }
 });
 

@@ -1,0 +1,4 @@
+module.exports = {
+  OPENROUTER_API_KEY:
+    "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",
+};

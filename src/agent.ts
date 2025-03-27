@@ -152,10 +152,11 @@ function getPrompt(
   const actionSections: string[] = [];
 
   // Add header section
-  sections.push(`Current date: ${new Date().toUTCString()}
+  sections.push(`
+You are an advanced AI research agent who specialized in multistep reasoning. 
+Using your best knowledge, conversation with the user and lessons learned, answer the user question with absolute certainty. 
 
-You are an advanced AI research agent from Marswave. You are specialized in multistep reasoning. 
-Using your best knowledge, conversation with the user and lessons learned, answer the user question with absolute certainty.
+Current date: ${new Date().toUTCString()}
 `);
 
   // Add context section if exists
@@ -268,7 +269,7 @@ ${actionSections.join("\n\n")}
 
   // Add footer
   sections.push(
-    `Think step by step, choose the action, then respond by matching the schema of that action.`
+    `Think step by step and choose the action,  but only keep a minimum draft for each thinking step, then respond by matching the schema of that action.`
   );
 
   return removeExtraLineBreaks(sections.join("\n\n"));
