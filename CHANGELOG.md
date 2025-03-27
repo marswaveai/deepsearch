@@ -1,5 +1,11 @@
 # @marswaveai/deepsearch
 
+## 0.1.12
+
+### Patch Changes
+
+- Chore
+
 ## 0.1.11
 
 ### Patch Changes

@@ -18,7 +18,6 @@ interface ProviderConfig {
   clientConfig?: Record<string, any>;
 }
 
-console.log("ocnfig json", configJson.env);
 // Environment setup, order: env > ./config > config-json.ts
 const env: EnvConfig = { ...configJson.env };
 
